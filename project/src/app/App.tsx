@@ -1681,6 +1681,7 @@ function StudentAssignments({ enrollments }: { enrollments: any[] }) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [submitTask, setSubmitTask] = useState<any>(null);
 
   useEffect(() => {
     if (!enrollments.length) {
@@ -1694,15 +1695,19 @@ function StudentAssignments({ enrollments }: { enrollments: any[] }) {
     }
   }, [enrollments, selectedEnrollmentId]);
 
-  useEffect(() => {
-    if (!selectedEnrollmentId) return;
-    setLoading(true);
-    setError("");
-    api.tasks.getAll(selectedEnrollmentId)
-      .then((data) => setTasks(data || []))
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Couldn't load assignments."))
-      .finally(() => setLoading(false));
-  }, [selectedEnrollmentId]);
+  const fetchTasks = () => {
+  if (!selectedEnrollmentId) return;
+  setLoading(true);
+  setError("");
+  return api.tasks.getAll(selectedEnrollmentId)
+    .then((data) => setTasks(data || []))
+    .catch((err) => setError(err instanceof ApiError ? err.message : "Couldn't load assignments."))
+    .finally(() => setLoading(false));
+};
+
+useEffect(() => {
+  fetchTasks();
+}, [selectedEnrollmentId]);
 
   const statusConfig: Record<string, { color: "green" | "amber" | "red" | "slate" | "blue"; label: string }> = {
     completed: { color: "green", label: "Completed" },
@@ -1765,16 +1770,118 @@ function StudentAssignments({ enrollments }: { enrollments: any[] }) {
                 <Badge color={(statusConfig[task.status] || { color: "blue" }).color}>{(statusConfig[task.status] || { label: task.status || "Open" }).label}</Badge>
               </div>
             </div>
+            {task.status === "rejected" && task.submission?.review_notes && (
+              <p className="text-xs text-red-500 mt-2">Reviewer note: {task.submission.review_notes}</p>
+              )}
             {(task.status === "current" || task.status === "rejected") && (
-              <button className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5">
-                <ArrowUpRight className="w-3.5 h-3.5" /> Submit Assignment
+              <button onClick={() => setSubmitTask(task)}
+              className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5">
+                <ArrowUpRight className="w-3.5 h-3.5" /> {task.status === "rejected" ? "Resubmit Assignment" : "Submit Assignment"}
               </button>
             )}
           </div>
         ))}
       </div>
       )}
+      <SubmitTaskModal
+        task={submitTask}
+        enrollmentId={selectedEnrollmentId}
+        onClose={() => setSubmitTask(null)}
+        onSubmitted={() => {
+          setSubmitTask(null);
+          fetchTasks();
+        }}
+      />
     </div>
+  );
+}
+function SubmitTaskModal({ task, enrollmentId, onClose, onSubmitted }: {
+  task: any; enrollmentId: string; onClose: () => void; onSubmitted: () => void;
+}) {
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setLinkedinUrl(task?.submission?.linkedin_url || "");
+    setError("");
+  }, [task]);
+
+  if (!task) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!linkedinUrl.trim()) {
+      setError("Please enter your LinkedIn post URL.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await api.tasks.submit(enrollmentId, linkedinUrl.trim());
+      onSubmitted();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't submit your assignment. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16 }}
+          transition={{ duration: 0.2 }}
+          className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-lg text-foreground">Submit Assignment</h3>
+              <p className="text-sm text-muted-foreground mt-0.5">{task.title || `Task ${task.task_number}`}</p>
+            </div>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <form onSubmit={handleSubmit}>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">LinkedIn Post URL</label>
+            <input
+              type="url"
+              required
+              autoFocus
+              value={linkedinUrl}
+              onChange={(e) => setLinkedinUrl(e.target.value)}
+              placeholder="https://www.linkedin.com/posts/..."
+              className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Post about what you built for this task on LinkedIn and paste the link here.
+            </p>
+            {error && (
+              <p className="text-xs text-red-500 mt-2 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {error}
+              </p>
+            )}
+            <div className="flex gap-3 mt-5">
+              <button type="button" onClick={onClose}
+                className="flex-1 py-2.5 bg-muted text-muted-foreground rounded-xl text-sm font-semibold hover:bg-muted/80 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={submitting}
+                className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2">
+                {submitting ? <Spin /> : "Submit"}
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 

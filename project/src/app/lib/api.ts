@@ -182,6 +182,10 @@ export const api = {
       const body = await get<any>(`/tasks/${enrollmentId}`);
       return unwrap<any[]>(body);
     },
+    submit: async (enrollmentId: string, linkedinUrl: string) => {
+      const body = await post<any>(`/tasks/${enrollmentId}/submit`, { linkedin_url: linkedinUrl });
+      return unwrap<any>(body);
+    },
   },
 
   certificates: {
