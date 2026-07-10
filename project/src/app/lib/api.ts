@@ -225,6 +225,10 @@ export const api = {
       const body = await get<any>("/admin/submissions/pending");
       return unwrap<any[]>(body);
     },
+    reviewSubmission: async (id: string, action: "approve" | "reject", notes?: string) => {
+      const body = await post<any>(`/admin/submissions/${id}/review`, { action, notes });
+      return unwrap<any>(body);
+    },
     getPayments: async () => {
       const body = await get<any>("/admin/payments");
       return unwrap<any>(body);
