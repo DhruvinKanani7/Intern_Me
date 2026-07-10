@@ -102,6 +102,8 @@ export const api = {
   auth: {
     login: async (email: string, password: string) => {
       const body = await post<any>("/auth/login", { college_email: email, password });
+      const token = (body as any)?.token;
+      if (token) tokenStore.set(token);
       return { user: normalizeUser(unwrap<any>(body)), token: undefined };
     },
 
@@ -126,7 +128,12 @@ export const api = {
     verifyEmail: (token: string) =>
       post<{ message: string }>("/auth/verify-email", { token }),
 
-    logout: () => post<{ message: string }>("/auth/logout"),
+    logout: async () => {
+      const result = await post<{ message: string }>("/auth/logout");
+      tokenStore.clear();
+      userStore.clear();
+      return result;
+    },
 
     me: async () => {
       const body = await get<any>("/auth/me");
