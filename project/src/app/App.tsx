@@ -23,7 +23,7 @@ type Page =
   | "home" | "internships" | "detail" | "login" | "register"
   | "student" | "admin" | "verify" | "about" | "contact" | "pricing";
 type StudentTab = "overview" | "internships" | "assignments" | "certs" | "payments" | "profile";
-type AdminTab = "overview" | "students" | "programs" | "certs" | "payments";
+type AdminTab = "overview" | "students" | "programs" | "submissions" | "certs" | "payments";
 
 interface User {
   id: string;
@@ -2031,6 +2031,7 @@ function AdminDashboard() {
     { label: "Overview", tab: "overview", icon: Home },
     { label: "Students", tab: "students", icon: Users },
     { label: "Programs", tab: "programs", icon: Briefcase },
+    { label: "Task Approvals", tab: "submissions", icon: CheckCircle },
     { label: "Certificates", tab: "certs", icon: Award },
     { label: "Payments", tab: "payments", icon: CreditCard },
   ];
@@ -2107,6 +2108,7 @@ function AdminDashboard() {
               {tab === "overview" && <AdminOverview stats={stats} />}
               {tab === "students" && <AdminStudents />}
               {tab === "programs" && <AdminPrograms />}
+              {tab === "submissions" && <AdminSubmissions />}
               {tab === "certs" && <AdminCerts />}
               {tab === "payments" && <AdminPmts />}
             </motion.div>
@@ -2469,6 +2471,124 @@ function AdminPrograms() {
             <button onClick={() => openEditForm(i)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"><MoreHorizontal className="w-4 h-4" /></button>
           </div>
         ))}
+      </div>
+      )}
+    </div>
+  );
+}
+
+function AdminSubmissions() {
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectNotes, setRejectNotes] = useState("");
+
+  const loadSubmissions = () => {
+    setLoading(true);
+    setError("");
+    api.admin.getPendingSubmissions()
+      .then((data) => setSubmissions(Array.isArray(data) ? data : (data as any)?.submissions || []))
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Couldn't load pending submissions."))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadSubmissions();
+  }, []);
+
+  const handleApprove = async (id: string) => {
+    setBusyId(id);
+    try {
+      await api.admin.reviewSubmission(id, "approve");
+      loadSubmissions();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't approve submission.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    setBusyId(id);
+    try {
+      await api.admin.reviewSubmission(id, "reject", rejectNotes.trim() || undefined);
+      setRejectingId(null);
+      setRejectNotes("");
+      loadSubmissions();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't reject submission.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="font-display font-bold text-2xl text-foreground mb-6">Task Approvals</h2>
+      {loading ? (
+        <div className="flex items-center justify-center py-20"><Spin /></div>
+      ) : error ? (
+        <div className="text-center py-20 text-red-500"><AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-60" /><p>{error}</p></div>
+      ) : submissions.length === 0 ? (
+        <div className="text-center py-20 text-muted-foreground"><CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>No pending submissions. All caught up.</p></div>
+      ) : (
+      <div className="flex flex-col gap-4">
+        {submissions.map((submission) => {
+          const enrollment = submission.enrollment_id || {};
+          const student = enrollment.user_id || {};
+          const internship = enrollment.internship_id || {};
+          const isBusy = busyId === submission._id;
+          return (
+            <div key={submission._id} className="bg-card border border-border rounded-2xl p-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground text-sm">{student.full_name || "Unknown student"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {internship.category_name || "Internship"} · {enrollment.internship_code} · Task {submission.task_number}
+                  </p>
+                  <a href={submission.linkedin_url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2">
+                    View LinkedIn submission <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <p className="text-xs text-muted-foreground mt-1">Submitted: {formatDate(submission.submitted_at)}</p>
+                </div>
+                <Badge color="amber">Pending Review</Badge>
+              </div>
+
+              {rejectingId === submission._id ? (
+                <div className="mt-4 flex flex-col gap-2">
+                  <textarea value={rejectNotes} onChange={(e) => setRejectNotes(e.target.value)}
+                    placeholder="Reason for rejection (sent to the student)"
+                    className="w-full bg-input-background border border-border rounded-lg px-3 py-2 text-sm text-foreground resize-none"
+                    rows={2} />
+                  <div className="flex gap-2">
+                    <button disabled={isBusy} onClick={() => handleReject(submission._id)}
+                      className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-semibold hover:bg-red-600 transition-colors disabled:opacity-50">
+                      {isBusy ? "Rejecting…" : "Confirm Reject"}
+                    </button>
+                    <button disabled={isBusy} onClick={() => { setRejectingId(null); setRejectNotes(""); }}
+                      className="px-3 py-1.5 border border-border rounded-lg text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2 mt-4">
+                  <button disabled={isBusy} onClick={() => handleApprove(submission._id)}
+                    className="px-3 py-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-semibold hover:bg-emerald-500/20 transition-colors disabled:opacity-50">
+                    {isBusy ? "Approving…" : "Approve"}
+                  </button>
+                  <button disabled={isBusy} onClick={() => setRejectingId(submission._id)}
+                    className="px-3 py-1.5 bg-red-500/10 text-red-600 dark:text-red-400 rounded-lg text-xs font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50">
+                    Reject
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       )}
     </div>
