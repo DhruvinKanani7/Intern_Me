@@ -1307,7 +1307,7 @@ function RegisterPage() {
         ) : (
           <div className="bg-card border border-border rounded-2xl p-6 text-center">
             <Mail className="w-10 h-10 text-primary mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-5">Open your University mailbox and click the link, then sign in.</p>
+            <p className="text-sm text-muted-foreground mb-5">Open your inbox and click the link, then sign in.</p>
             <button type="button" onClick={() => go("login")}
               className="w-full py-3.5 bg-primary text-primary-foreground rounded-xl font-bold text-base hover:opacity-90 transition-opacity shadow-lg shadow-primary/20">
               Go to Sign In
