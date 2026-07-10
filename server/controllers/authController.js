@@ -120,7 +120,7 @@ export const login = async (req, res) => {
     const token = signToken(user);
     setTokenCookie(res, token);
 
-    return res.json(successResponse({ data: user }, 'Login successful'));
+    return res.json(successResponse({ data: user, token}, 'Login successful'));
   } catch (err) {
     return res.status(500).json(errorResponse(err.message));
   }
