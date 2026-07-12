@@ -24,6 +24,8 @@ connectDB();
 
 const app = express();
 
+// Required when deploying behind Render's proxy
+app.set('trust proxy', 1);
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(
   cors({

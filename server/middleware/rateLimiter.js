@@ -21,5 +21,16 @@ export const generalLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Too many requests. Please slow down.' }
+  handler: (req, res) => {
+    console.log(
+      "Rate limit exceeded:",
+      req.ip,
+      req.originalUrl
+    );
+
+    res.status(429).json({
+      success: false,
+   message: "Too many requests. Please slow down."
+    });
+  }
 });
