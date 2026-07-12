@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+
+import cloudinary from '../config/cloudinary.js';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 import Certificate from '../models/Certificate.js';
@@ -8,13 +8,23 @@ import User from '../models/User.js';
 import Internship from '../models/Internship.js';
 import { sendCertificateEmail } from './email.js';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'certificates');
-
-const ensureUploadDir = () => {
-  if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  }
-};
+const uploadPdfToCloudinary = (buffer, certId) =>
+  new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'raw',
+        folder: 'interncert/certificates',
+        public_id: certId,
+        format: 'pdf',
+        overwrite: false
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    uploadStream.end(buffer);
+  });
 
 const generateCertId = () => {
   const random = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -25,7 +35,7 @@ const generateCertId = () => {
 // document, and emails it to the student. Called when the final task of an
 // enrollment is approved.
 const generate = async (enrollmentId) => {
-  ensureUploadDir();
+  
 
   const enrollment = await Enrollment.findById(enrollmentId).populate('internship_id');
   if (!enrollment) throw new Error('Enrollment not found for certificate generation');
@@ -41,13 +51,15 @@ const generate = async (enrollmentId) => {
   const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
   const qrBuffer = Buffer.from(qrBase64, 'base64');
 
-  const pdfPath = path.join(UPLOAD_DIR, `${certId}.pdf`);
-  const pdfUrlPublic = `/uploads/certificates/${certId}.pdf`;
 
-  await new Promise((resolve, reject) => {
+
+
+  const pdfBuffer = await new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: [842, 595], layout: 'landscape', margin: 0 });
-    const stream = fs.createWriteStream(pdfPath);
-    doc.pipe(stream);
+    const chunks = [];
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
 
     // Outer border
     doc.lineWidth(3).strokeColor('#1a1a2e').rect(20, 20, 842 - 40, 595 - 40).stroke();
@@ -103,9 +115,10 @@ const generate = async (enrollmentId) => {
       .text(`Date of Issue: ${new Date().toDateString()}`, 0, 545, { align: 'center' });
 
     doc.end();
-    stream.on('finish', resolve);
-    stream.on('error', reject);
   });
+
+  const uploadResult = await uploadPdfToCloudinary(pdfBuffer, certId);
+  const pdfUrlPublic = uploadResult.secure_url;
 
   const certificate = await Certificate.create({
     enrollment_id: enrollment._id,

@@ -3,8 +3,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import connectDB from './config/db.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 
@@ -18,8 +16,9 @@ import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payments.js';
 import contactRoutes from './routes/contact.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+
+
+
 
 connectDB();
 
@@ -36,8 +35,8 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(generalLimiter);
 
-// Serve generated certificate PDFs
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+
 
 app.use('/api/auth', authRoutes);
 app.use('/api/internships', internshipRoutes);
