@@ -42,6 +42,7 @@ interface Internship {
   enrolled: number; rating: number; reviews: number;
   description: string; skills: string[]; image: string; badge?: string;
   modules?: number; projects?: number;
+  price_1m?: number; price_3m?: number; price_5m?: number;
 }
 
 const TESTIMONIALS = [
@@ -847,6 +848,7 @@ function InternshipDetailPage() {
   const [intern, setIntern] = useState<Internship | null>(null);
   const [loadingIntern, setLoadingIntern] = useState(true);
   const [internError, setInternError] = useState("");
+  const [selectedDuration, setSelectedDuration] = useState<1 | 3 | 5>(1);
 
   useEffect(() => {
     if (!selectedId) {
@@ -867,7 +869,7 @@ function InternshipDetailPage() {
     setEnrollError("");
     setEnrolling(true);
     try {
-      const order = await api.enrollment.enroll(intern.id);
+      const order = await api.enrollment.enroll(intern.id,String(selectedDuration));
       if (order.devCompleted || order.enrollmentId) {
         go("student");
         return;
@@ -944,6 +946,17 @@ function InternshipDetailPage() {
       </div>
     );
   }
+  const durationOptions = [];
+
+if (intern.price_1m > 0) durationOptions.push({ months: 1, price: intern.price_1m });
+if (intern.price_3m > 0) durationOptions.push({ months: 3, price: intern.price_3m });
+if (intern.price_5m > 0) durationOptions.push({ months: 5, price: intern.price_5m });
+
+const selectedPrice =
+  selectedDuration === 1 ? intern.price_1m :
+  selectedDuration === 3 ? intern.price_3m :
+  selectedDuration === 5 ? intern.price_5m :
+  intern.price;
 
   return (
     <div className="pt-20">
@@ -1079,14 +1092,23 @@ function InternshipDetailPage() {
             <div className="sticky top-24 bg-card border border-border rounded-2xl overflow-hidden shadow-xl shadow-primary/5">
               <div className="p-6">
                 <div className="mb-5">
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="font-display font-extrabold text-3xl text-foreground">₹{intern.price.toLocaleString()}</span>
-                    {intern.originalPrice && (
-                      <span className="text-base text-muted-foreground line-through">₹{intern.originalPrice.toLocaleString()}</span>
-                    )}
-                  </div>
-                  {intern.originalPrice && (
-                    <Badge color="green">{Math.round((1 - intern.price / intern.originalPrice) * 100)}% off</Badge>
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span className="font-display font-extrabold text-3xl text-foreground">₹{selectedPrice.toLocaleString()}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">for {selectedDuration} month{selectedDuration > 1 ? "s" : ""}</p>
+                      </div>
+                      {durationOptions.length > 1 && (
+                      <div className="grid grid-cols-3 gap-2 mb-5">
+                        {durationOptions.map((d) => (
+                          <button key={d.months} type="button" onClick={() => setSelectedDuration(d.months)}
+                            className={cn("px-2 py-2.5 rounded-xl text-xs font-semibold border transition-all",
+                              selectedDuration === d.months
+                               ? "border-primary bg-primary/10 text-primary"
+                               : "border-border text-muted-foreground hover:border-primary/40")}>
+                          {d.months} mo
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
                 {enrollError && (
@@ -2716,7 +2738,7 @@ function AdminPmts() {
 
 // ── Certificate Verification ───────────────────────────────────────────────────
 function CertVerifyPage() {
-  const [certId, setCertId] = useState("");
+  const [internshipCode, setInternshipCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [searched, setSearched] = useState(false);
@@ -2724,11 +2746,11 @@ function CertVerifyPage() {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!certId.trim()) return;
+    if (!internshipCode.trim()) return;
     setLoading(true);
     setResult(null);
     try {
-      const res = await api.certificates.verify(certId.trim());
+      const res = await api.certificates.verify(internshipCode.trim());
       setResult(res);
     } catch {
       setResult({ valid: false });
@@ -2746,17 +2768,17 @@ function CertVerifyPage() {
             <QrCode className="w-8 h-8 text-primary" />
           </div>
           <h1 className="font-display font-extrabold text-4xl text-foreground mb-3">Verify Certificate</h1>
-          <p className="text-muted-foreground text-lg">Enter a Certificate ID to instantly verify its authenticity.</p>
+          <p className="text-muted-foreground text-lg">Enter an Internship Code to instantly verify its authenticity.</p>
         </div>
 
         <form onSubmit={handleVerify} className="flex gap-3 mb-3">
           <div className="relative flex-1">
             <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input value={certId} onChange={(e) => setCertId(e.target.value)}
+            <input value={internshipCode} onChange={(e) => setInternshipCode(e.target.value)}
               placeholder="e.g. RNA-2024-WD-001247"
               className="w-full pl-10 pr-4 py-3.5 bg-card border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all font-mono" />
           </div>
-          <button type="submit" disabled={loading || !certId.trim()}
+          <button type="submit" disabled={loading || !internshipCode.trim()}
             className="px-6 py-3.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-primary/20 flex-shrink-0">
             {loading ? <Spin /> : <><Search className="w-4 h-4" /> Verify</>}
           </button>
@@ -2829,7 +2851,7 @@ function CertVerifyPage() {
                     <AlertCircle className="w-7 h-7 text-red-500" />
                   </div>
                   <h3 className="font-bold text-xl text-foreground mb-2">Certificate Not Found</h3>
-                  <p className="text-muted-foreground text-sm">No certificate found with ID <strong className="font-mono text-foreground">{certId}</strong>. Please check the ID and try again.</p>
+                  <p className="text-muted-foreground text-sm">No certificate found with ID <strong className="font-mono text-foreground">{internshipCode}</strong>. Please check the ID and try again.</p>
                 </div>
               )}
             </motion.div>
