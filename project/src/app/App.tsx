@@ -1092,11 +1092,11 @@ const selectedPrice =
             <div className="sticky top-24 bg-card border border-border rounded-2xl overflow-hidden shadow-xl shadow-primary/5">
               <div className="p-6">
                 <div className="mb-5">
-                    <div className="flex items-baseline gap-2 mb-1">
+                      <div className="flex items-baseline gap-2 mb-1">
                       <span className="font-display font-extrabold text-3xl text-foreground">₹{selectedPrice.toLocaleString()}</span>
                       </div>
                       <p className="text-xs text-muted-foreground">for {selectedDuration} month{selectedDuration > 1 ? "s" : ""}</p>
-                      </div>
+                      
                       {durationOptions.length > 1 && (
                       <div className="grid grid-cols-3 gap-2 mb-5">
                         {durationOptions.map((d) => (
@@ -1146,6 +1146,8 @@ const selectedPrice =
         </div>
       </div>
     </div>
+    
+    
   );
 }
 
