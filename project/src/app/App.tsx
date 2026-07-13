@@ -409,7 +409,7 @@ function InternshipCard({ intern }: { intern: Internship }) {
   const levelColor: Record<string, "green" | "amber" | "red"> = { Beginner: "green", Intermediate: "amber", Advanced: "red" };
   return (
     <motion.div whileHover={{ y: -4, shadow: "0 20px 40px rgba(0,0,0,0.1)" }} transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className="bg-card border border-border rounded-2xl overflow-hidden group cursor-pointer flex flex-col hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300"
+      className="bg-card border border-border rounded-2xl overflow-hidden group cursor-pointer flex flex-col h-full hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300"
       onClick={() => go("detail", { id: intern.id })}>
       <div className="relative overflow-hidden bg-muted" style={{ paddingBottom: "60%" }}>
         <img src={intern.image} alt={intern.title}
@@ -598,7 +598,7 @@ function LandingPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {featuredInternships.map((intern, i) => (
-              <motion.div key={intern.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.07, duration: 0.5 }}>
+              <motion.div key={intern.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.07, duration: 0.5 }} className="h-full">
                 <InternshipCard intern={intern} />
               </motion.div>
             ))}
@@ -828,7 +828,7 @@ function InternshipsPage() {
           <p className="text-sm text-muted-foreground mb-6">{filtered.length} programs found</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map((intern, i) => (
-              <motion.div key={intern.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.4 }}>
+              <motion.div key={intern.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.4 }} className="h-full">
                 <InternshipCard intern={intern} />
               </motion.div>
             ))}
