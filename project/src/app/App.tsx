@@ -1,4 +1,5 @@
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React, { useState, useEffect, useMemo, createContext, useContext } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   GraduationCap, Award, BookOpen, Users, TrendingUp, Star,
@@ -3084,13 +3085,47 @@ function PricingPage() {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
+function pathForPage(p: Page, id?: string | null): string {
+  switch (p) {
+    case "home": return "/";
+    case "internships": return "/internships";
+    case "detail": return `/internships/${id ?? ""}`;
+    case "login": return "/login";
+    case "register": return "/register";
+    case "student": return "/student";
+    case "admin": return "/admin";
+    case "verify": return "/verify";
+    case "about": return "/about";
+    case "contact": return "/contact";
+    case "pricing": return "/pricing";
+    default: return "/";
+  }
+}
+
+function parsePathname(pathname: string): { page: Page; id: string | null } {
+  if (pathname === "/") return { page: "home", id: null };
+  if (pathname === "/internships") return { page: "internships", id: null };
+  const detailMatch = pathname.match(/^\/internships\/([^/]+)\/?$/);
+  if (detailMatch) return { page: "detail", id: decodeURIComponent(detailMatch[1]) };
+  if (pathname === "/login") return { page: "login", id: null };
+  if (pathname === "/register") return { page: "register", id: null };
+  if (pathname === "/student") return { page: "student", id: null };
+  if (pathname === "/admin") return { page: "admin", id: null };
+  if (pathname === "/verify") return { page: "verify", id: null };
+  if (pathname === "/about") return { page: "about", id: null };
+  if (pathname === "/contact") return { page: "contact", id: null };
+  if (pathname === "/pricing") return { page: "pricing", id: null };
+  return { page: "home", id: null };
+}
+
 export default function App() {
   const [theme, setTheme] = useState<"light" | "dark">(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
   );
-  const [page, setPage] = useState<Page>("home");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { page, id: selectedId } = useMemo(() => parsePathname(location.pathname), [location.pathname]);
   const [user, setUser] = useState<User | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [emailVerificationMessage, setEmailVerificationMessage] = useState("");
 
@@ -3107,8 +3142,7 @@ export default function App() {
       .then(() => setEmailVerificationMessage("Email verified successfully. You can sign in now."))
       .catch((err) => setEmailVerificationMessage(err instanceof ApiError ? err.message : "Email verification failed."))
       .finally(() => {
-        window.history.replaceState({}, "", window.location.origin);
-        setPage("login");
+          navigate("/login", { replace: true });
         setAuthChecked(true);
       });
   }, []);
@@ -3138,8 +3172,7 @@ export default function App() {
   }, []);
 
   const go = (p: Page, data?: { id?: string }) => {
-    if (data?.id) setSelectedId(data.id);
-    setPage(p);
+    navigate(pathForPage(p, data?.id ?? null));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
