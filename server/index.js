@@ -36,8 +36,15 @@ app.use(
     credentials: true
   })
 );
-// Enforce 100kb payload size limit globally (Phase 0.4 / F38)
-app.use(express.json({ limit: '100kb' }));
+// Enforce 100kb payload size limit globally and capture raw body for webhook verification (F5, F38)
+app.use(
+  express.json({
+    limit: '100kb',
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    }
+  })
+);
 app.use(cookieParser());
 app.use(generalLimiter);
 

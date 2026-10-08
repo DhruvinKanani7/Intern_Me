@@ -2,3 +2,6 @@
 server/.env
 *.md
 .codegraph/
+node_modules/
+*/node_modules/
+

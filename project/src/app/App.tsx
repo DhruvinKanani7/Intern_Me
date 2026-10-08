@@ -871,7 +871,7 @@ function InternshipDetailPage() {
     setEnrolling(true);
     try {
       const order = await api.enrollment.enroll(intern.id,String(selectedDuration));
-      if (order.devCompleted || order.enrollmentId) {
+      if (order.enrollmentId) {
         go("student");
         return;
       }
