@@ -22,7 +22,7 @@ res.cookie('token', token, {
 });
 };
 
-export const register = async (req, res) => {
+export const register = async (req, res, next) => {
   try {
     const {
       full_name,
@@ -69,15 +69,20 @@ export const register = async (req, res) => {
       email_token_expires: new Date(Date.now() + 24 * 60 * 60 * 1000)
     });
 
-    await sendVerificationEmail(user.college_email, emailToken);
+    try {
+      await sendVerificationEmail(user.college_email, emailToken);
+    } catch (emailErr) {
+      // In dev/test don't crash registration if email service fails
+      console.warn(`Verification email could not be sent: ${emailErr.message}`);
+    }
 
     return res.status(201).json(successResponse({ data: user }, 'Registration successful. Please check your email to verify your account.'));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const verifyEmail = async (req, res) => {
+export const verifyEmail = async (req, res, next) => {
   try {
     const { token } = req.body;
     if (!token) return res.status(400).json(errorResponse('Token is required'));
@@ -95,11 +100,11 @@ export const verifyEmail = async (req, res) => {
 
     return res.json(successResponse({}, 'Email verified successfully'));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const login = async (req, res) => {
+export const login = async (req, res, next) => {
   try {
     const { college_email, password } = req.body;
     if (!college_email || !password) {
@@ -122,7 +127,7 @@ export const login = async (req, res) => {
 
     return res.json(successResponse({ data: user, token}, 'Login successful'));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
@@ -136,7 +141,7 @@ export const logout = async (req, res) => {
   return res.json(successResponse({}, 'Logged out successfully'));
 };
 
-export const forgotPassword = async (req, res) => {
+export const forgotPassword = async (req, res, next) => {
   try {
     const { college_email } = req.body;
     const genericMessage = 'If an account with this email exists, a reset link has been sent.';
@@ -147,16 +152,20 @@ export const forgotPassword = async (req, res) => {
       user.reset_token = resetToken;
       user.reset_token_expires = new Date(Date.now() + 60 * 60 * 1000);
       await user.save();
-      await sendPasswordReset(user.college_email, resetToken);
+      try {
+        await sendPasswordReset(user.college_email, resetToken);
+      } catch (emailErr) {
+        console.warn(`Password reset email could not be sent: ${emailErr.message}`);
+      }
     }
 
     return res.json(successResponse({}, genericMessage));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const resetPassword = async (req, res) => {
+export const resetPassword = async (req, res, next) => {
   try {
     const { token, new_password } = req.body;
     if (!isStrongPassword(new_password)) {
@@ -178,16 +187,16 @@ export const resetPassword = async (req, res) => {
 
     return res.json(successResponse({}, 'Password reset successfully'));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const getMe = async (req, res) => {
+export const getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json(errorResponse('User not found'));
     return res.json(successResponse({ data: user }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };

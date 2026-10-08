@@ -2,7 +2,7 @@ import Certificate from '../models/Certificate.js';
 import Enrollment from '../models/Enrollment.js';
 import { successResponse, errorResponse } from '../utils/helpers.js';
 
-export const getMyCertificates = async (req, res) => {
+export const getMyCertificates = async (req, res, next) => {
   try {
     const enrollments = await Enrollment.find({ user_id: req.user.id }).select('_id');
     const enrollmentIds = enrollments.map((enrollment) => enrollment._id);
@@ -10,11 +10,11 @@ export const getMyCertificates = async (req, res) => {
 
     return res.json(successResponse({ data: certificates }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const getCertificateByEnrollment = async (req, res) => {
+export const getCertificateByEnrollment = async (req, res, next) => {
   try {
     const enrollment = await Enrollment.findOne({ _id: req.params.enrollmentId, user_id: req.user.id });
     if (!enrollment) return res.status(404).json(errorResponse('Enrollment not found'));
@@ -24,11 +24,11 @@ export const getCertificateByEnrollment = async (req, res) => {
 
     return res.json(successResponse({ data: certificate }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const downloadCertificate = async (req, res) => {
+export const downloadCertificate = async (req, res, next) => {
   try {
     const enrollment = await Enrollment.findOne({ user_id: req.user.id, _id: req.params.id });
     const certificate = enrollment
@@ -45,6 +45,6 @@ export const downloadCertificate = async (req, res) => {
 
     return res.json(successResponse({ data: { url: certificate.pdf_url } }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };

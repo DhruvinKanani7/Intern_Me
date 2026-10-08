@@ -5,10 +5,10 @@ const { Schema } = mongoose;
 const taskSubmissionSchema = new Schema({
   enrollment_id: { type: Schema.Types.ObjectId, ref: 'Enrollment', required: true },
   task_number: { type: Number, required: true, min: 1 },
-  linkedin_url: { type: String, required: true },
+  linkedin_url: { type: String, required: true, maxlength: 2048 },
   status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   reviewed_by: { type: Schema.Types.ObjectId, ref: 'User' },
-  review_notes: String,
+  review_notes: { type: String, maxlength: 2000 },
   submitted_at: { type: Date, default: Date.now },
   reviewed_at: Date
 });

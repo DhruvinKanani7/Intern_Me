@@ -2,7 +2,7 @@ import Enrollment from '../models/Enrollment.js';
 import Payment from '../models/Payment.js';
 import { successResponse, errorResponse } from '../utils/helpers.js';
 
-export const getMyPayments = async (req, res) => {
+export const getMyPayments = async (req, res, next) => {
   try {
     const enrollments = await Enrollment.find({ user_id: req.user.id }).select('_id');
     const enrollmentIds = enrollments.map((enrollment) => enrollment._id);
@@ -16,6 +16,6 @@ export const getMyPayments = async (req, res) => {
 
     return res.json(successResponse({ data: payments }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };

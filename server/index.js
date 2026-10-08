@@ -1,9 +1,12 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import env from './config/env.js';
+import logger from './config/logger.js';
 import connectDB from './config/db.js';
+import requestIdMiddleware from './middleware/requestId.js';
+import errorHandler from './middleware/errorHandler.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 
 import authRoutes from './routes/auth.js';
@@ -16,30 +19,29 @@ import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payments.js';
 import contactRoutes from './routes/contact.js';
 
-
-
-
-
-connectDB();
-
 const app = express();
 
-// Required when deploying behind Render's proxy
-app.set('trust proxy', 1);
+// Trust proxy configuration (Documented for ingress/reverse proxies like Render/Cloudflare/Nginx)
+const trustProxyValue = isNaN(Number(env.TRUST_PROXY))
+  ? env.TRUST_PROXY
+  : Number(env.TRUST_PROXY);
+app.set('trust proxy', trustProxyValue);
+
+// Security and middleware
+app.use(requestIdMiddleware);
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin: env.FRONTEND_URL,
     credentials: true
   })
 );
-app.use(express.json());
+// Enforce 100kb payload size limit globally (Phase 0.4 / F38)
+app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 app.use(generalLimiter);
 
-
-
-
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/internships', internshipRoutes);
 app.use('/api/enroll', enrollRoutes);
@@ -50,19 +52,26 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/contact', contactRoutes);
 
-app.get('/api/health', (req, res) => res.json({ success: true, message: 'InternCert API running' }));
+// Health check endpoint
+app.get('/api/health', (req, res) =>
+  res.json({ success: true, message: 'InternCert API running', request_id: req.id })
+);
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+  res.status(404).json({ success: false, message: 'Route not found', request_id: req.id });
 });
 
-// Global error handler
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ success: false, message: 'Internal server error' });
-});
+// Centralized error handler (Phase 0.3 / F21)
+app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`InternCert server running on port ${PORT}`));
+// If not in test mode, connect DB and listen
+if (env.NODE_ENV !== 'test') {
+  connectDB().then(() => {
+    app.listen(env.PORT, () => {
+      logger.info(`InternCert server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
+    });
+  });
+}
+
+export default app;

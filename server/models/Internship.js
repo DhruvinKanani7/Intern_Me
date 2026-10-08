@@ -5,20 +5,20 @@ const { Schema } = mongoose;
 const taskSchema = new Schema(
   {
     task_number: { type: Number, required: true },
-    title: { type: String, required: true },
-    description: { type: String, required: true },
-    instructions: { type: String, required: true },
-    resources: [{ type: String }],
+    title: { type: String, required: true, maxlength: 150 },
+    description: { type: String, required: true, maxlength: 5000 },
+    instructions: { type: String, required: true, maxlength: 5000 },
+    resources: [{ type: String, maxlength: 2048 }],
     deadline_days: { type: Number, required: true }
   },
   { _id: false }
 );
 
 const internshipSchema = new Schema({
-  category_code: { type: String, required: true, unique: true, uppercase: true },
-  category_name: { type: String, required: true },
-  description: { type: String, required: true },
-  icon: { type: String, default: '📘' },
+  category_code: { type: String, required: true, unique: true, uppercase: true, maxlength: 50 },
+  category_name: { type: String, required: true, maxlength: 150 },
+  description: { type: String, required: true, maxlength: 5000 },
+  icon: { type: String, default: '📘', maxlength: 10 },
   syllabus: {
     '1m': [taskSchema],
     '3m': [taskSchema],

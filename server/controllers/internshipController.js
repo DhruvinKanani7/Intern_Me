@@ -1,7 +1,7 @@
 import Internship from '../models/Internship.js';
 import { successResponse, errorResponse } from '../utils/helpers.js';
 
-export const listInternships = async (req, res) => {
+export const listInternships = async (req, res, next) => {
   try {
     const filter = { is_active: true };
     if (req.query.category && req.query.category !== 'All') {
@@ -21,11 +21,11 @@ export const listInternships = async (req, res) => {
     );
     return res.json(successResponse({ data: internships }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const getInternshipByCode = async (req, res) => {
+export const getInternshipByCode = async (req, res, next) => {
   try {
     const internship = await Internship.findOne({
       category_code: req.params.code.toUpperCase(),
@@ -34,6 +34,6 @@ export const getInternshipByCode = async (req, res) => {
     if (!internship) return res.status(404).json(errorResponse('Internship not found'));
     return res.json(successResponse({ data: internship }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };

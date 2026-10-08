@@ -21,7 +21,7 @@ const deriveTaskStatus = (taskNumber, currentTask, submissions) => {
   return 'completed';
 };
 
-export const getAllTasks = async (req, res) => {
+export const getAllTasks = async (req, res, next) => {
   try {
     const enrollment = await getOwnedEnrollment(req.params.enrollmentId, req.user.id);
     if (!enrollment) return res.status(404).json(errorResponse('Enrollment not found'));
@@ -48,11 +48,11 @@ export const getAllTasks = async (req, res) => {
 
     return res.json(successResponse({ data: tasks }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const getCurrentTask = async (req, res) => {
+export const getCurrentTask = async (req, res, next) => {
   try {
     const enrollment = await getOwnedEnrollment(req.params.enrollmentId, req.user.id);
     if (!enrollment) return res.status(404).json(errorResponse('Enrollment not found'));
@@ -65,11 +65,11 @@ export const getCurrentTask = async (req, res) => {
 
     return res.json(successResponse({ data: { ...currentTask.toObject?.() ?? currentTask, task_number: enrollment.current_task } }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const submitTask = async (req, res) => {
+export const submitTask = async (req, res, next) => {
   try {
     const { linkedin_url } = req.body;
     const enrollment = await getOwnedEnrollment(req.params.enrollmentId, req.user.id);
@@ -109,11 +109,11 @@ export const submitTask = async (req, res) => {
 
     return res.json(successResponse({}, 'Task submitted successfully'));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const getProgress = async (req, res) => {
+export const getProgress = async (req, res, next) => {
   try {
     const enrollment = await getOwnedEnrollment(req.params.enrollmentId, req.user.id);
     if (!enrollment) return res.status(404).json(errorResponse('Enrollment not found'));
@@ -129,6 +129,6 @@ export const getProgress = async (req, res) => {
       successResponse({ data: { completed, total, percentage, current_task: enrollment.current_task } })
     );
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };

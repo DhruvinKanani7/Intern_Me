@@ -1,7 +1,7 @@
 import { successResponse, errorResponse } from '../utils/helpers.js';
 import { sendContactMessageEmail } from '../services/email.js';
 
-export const sendContactMessage = async (req, res) => {
+export const sendContactMessage = async (req, res, next) => {
   try {
     const { name, email, subject, message } = req.body;
 
@@ -23,6 +23,6 @@ export const sendContactMessage = async (req, res) => {
 
     return res.status(201).json(successResponse({}, 'Message received successfully'));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };

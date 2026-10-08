@@ -1,6 +1,6 @@
 import Certificate from '../models/Certificate.js';
 
-export const verifyCertificate = async (req, res) => {
+export const verifyCertificate = async (req, res, next) => {
   try {
     const certificate = await Certificate.findOne({ internship_code: req.params.internshipCode });
 
@@ -25,6 +25,6 @@ export const verifyCertificate = async (req, res) => {
       }
     });
   } catch (err) {
-    return res.status(500).json({ valid: false, message: err.message });
+    next(err);
   }
 };
