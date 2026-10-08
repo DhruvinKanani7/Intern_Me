@@ -7,6 +7,7 @@ import logger from './config/logger.js';
 import connectDB from './config/db.js';
 import requestIdMiddleware from './middleware/requestId.js';
 import errorHandler from './middleware/errorHandler.js';
+import { originCheck, csrfProtection } from './middleware/csrf.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 
 import authRoutes from './routes/auth.js';
@@ -29,13 +30,39 @@ app.set('trust proxy', trustProxyValue);
 
 // Security and middleware
 app.use(requestIdMiddleware);
-app.use(helmet({ crossOriginResourcePolicy: false }));
+
+// Enhanced Security Headers (Task 2.7 / F36)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", 'https://checkout.razorpay.com'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'https://*.razorpay.com'],
+        connectSrc: ["'self'", env.FRONTEND_URL, 'https://api.razorpay.com', 'https://lumberjack.razorpay.com'],
+        frameSrc: ['https://api.razorpay.com', 'https://checkout.razorpay.com'],
+        frameAncestors: ["'none'"]
+      }
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
+    }
+  })
+);
+
 app.use(
   cors({
     origin: env.FRONTEND_URL,
     credentials: true
   })
 );
+
 // Enforce 100kb payload size limit globally and capture raw body for webhook verification (F5, F38)
 app.use(
   express.json({
@@ -47,6 +74,10 @@ app.use(
 );
 app.use(cookieParser());
 app.use(generalLimiter);
+
+// Origin check and CSRF protection (Task 2.4 / F11)
+app.use(originCheck);
+app.use(csrfProtection);
 
 // API Routes
 app.use('/api/auth', authRoutes);

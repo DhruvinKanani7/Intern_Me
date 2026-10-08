@@ -10,7 +10,7 @@ import { createTestUser, createTestInternship } from '../helpers/seed.js';
 
 const authHeader = (user) => {
   const token = jwt.sign(
-    { id: String(user._id), role: user.role },
+    { id: String(user._id), role: user.role, token_version: user.token_version ?? 0 },
     process.env.JWT_SECRET
   );
   return { Authorization: `Bearer ${token}` };

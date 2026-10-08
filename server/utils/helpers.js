@@ -1,5 +1,6 @@
-// Validation helpers used across controllers
+import crypto from 'crypto';
 
+// Validation helpers used across controllers
 export const isValidCollegeEmail = (email) => {
   if (typeof email !== 'string') return false;
   const lower = email.toLowerCase().trim();
@@ -16,21 +17,32 @@ export const isStrongPassword = (password) => {
 
 export const isValidLinkedInUrl = (url) => {
   if (typeof url !== 'string') return false;
-  return url.toLowerCase().includes('linkedin.com');
+  try {
+    const parsed = new URL(url.trim());
+    return (
+      (parsed.protocol === 'https:' || parsed.protocol === 'http:') &&
+      (parsed.hostname === 'linkedin.com' ||
+        parsed.hostname === 'www.linkedin.com' ||
+        parsed.hostname.endsWith('.linkedin.com'))
+    );
+  } catch {
+    return false;
+  }
 };
 
-export const generateRandomToken = (bytes = 16) => {
-  // 32-char hex when bytes = 16
-  const chars = 'abcdef0123456789';
-  let token = '';
-  for (let i = 0; i < bytes * 2; i += 1) {
-    token += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return token;
+// Cryptographically secure token generation (F18)
+export const generateRandomToken = (bytes = 32) => {
+  return crypto.randomBytes(bytes).toString('hex');
+};
+
+// SHA-256 hash helper for one-time tokens stored at rest (F18)
+export const hashToken = (token) => {
+  if (!token) return '';
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
 };
 
 export const generateOTP = () => {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 };
 
 export const addDays = (date, days) => {

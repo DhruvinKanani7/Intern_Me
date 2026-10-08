@@ -13,6 +13,8 @@ const userSchema = new Schema({
   year_of_study: { type: Number, min: 1, max: 6 },
   password: { type: String, required: true, minlength: 8 },
   role: { type: String, enum: ['student', 'admin'], default: 'student' },
+  token_version: { type: Number, default: 0 },
+  is_disabled: { type: Boolean, default: false },
   email_verification_token: { type: String, maxlength: 256 },
   email_token_expires: Date,
   reset_token: { type: String, maxlength: 256 },

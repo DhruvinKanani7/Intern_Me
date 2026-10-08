@@ -1,4 +1,5 @@
 
+import crypto from 'crypto';
 import cloudinary from '../config/cloudinary.js';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
@@ -27,7 +28,7 @@ const uploadPdfToCloudinary = (buffer, certId) =>
   });
 
 const generateCertId = () => {
-  const random = Math.random().toString(36).substring(2, 10).toUpperCase();
+  const random = crypto.randomBytes(4).toString('hex').toUpperCase();
   return `CERT-${Date.now().toString(36).toUpperCase()}-${random}`;
 };
 

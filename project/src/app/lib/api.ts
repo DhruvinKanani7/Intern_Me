@@ -1,17 +1,10 @@
 // ── Real API Service Layer ──────────────────────────────────────────────────
-// Connects to the Express + MongoDB backend.
+// Connects to the Express + MongoDB backend with HttpOnly cookies & CSRF protection.
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
-// ── Session helpers ──────────────────────────────────────────────────────────
-const TOKEN_KEY = "internme_token";
+// ── Session helpers (Task 2.5: Token removed from localStorage) ───────────────
 const USER_KEY = "internme_user";
-
-export const tokenStore = {
-  get: () => localStorage.getItem(TOKEN_KEY),
-  set: (token: string) => localStorage.setItem(TOKEN_KEY, token),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
-};
 
 export const userStore = {
   get: () => {
@@ -22,8 +15,14 @@ export const userStore = {
   clear: () => localStorage.removeItem(USER_KEY),
 };
 
-// ── Core request helper ──────────────────────────────────────────────────────
-class ApiError extends Error {
+// Deprecated tokenStore stub for backward compatibility (no localStorage storage)
+export const tokenStore = {
+  get: () => null,
+  set: (_token: string) => {},
+  clear: () => {},
+};
+
+export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
     super(message);
@@ -31,18 +30,29 @@ class ApiError extends Error {
   }
 }
 
+function getCsrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+interface RequestOptions extends RequestInit {
+  _retry?: boolean;
+}
+
 async function request<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestOptions = {}
 ): Promise<T> {
-  const token = tokenStore.get();
+  const csrfToken = getCsrfToken();
+  const method = (options.method || "GET").toUpperCase();
 
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
-    credentials: "include",
+    credentials: "include", // Include HttpOnly cookies in all requests
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken && method !== "GET" ? { "X-CSRF-Token": csrfToken } : {}),
       ...(options.headers || {}),
     },
   });
@@ -52,6 +62,30 @@ async function request<T>(
     body = await res.json();
   } catch {
     // response had no JSON body
+  }
+
+  // Handle 401 with automatic token refresh (Task 2.5)
+  if (res.status === 401 && !options._retry && path !== "/auth/login" && path !== "/auth/refresh") {
+    options._retry = true;
+    try {
+      const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
+      });
+
+      if (refreshRes.ok) {
+        // Retry the original request after successful refresh
+        return request<T>(path, options);
+      }
+    } catch {
+      // Refresh failed
+    }
+
+    userStore.clear();
   }
 
   if (!res.ok) {
@@ -75,26 +109,24 @@ const normalizeUser = (user: any) => ({
   id: user?.id || user?._id,
   name: user?.name || user?.full_name,
   email: user?.email || user?.college_email,
+  enrollmentNo: user?.enrollmentNo || user?.enrollment_no,
+  collegeName: user?.collegeName || user?.college_name,
+  yearOfStudy: user?.yearOfStudy || user?.year_of_study,
 });
 
-const normalizeInternship = (internship: any) => ({
-  ...internship,
-  id: internship?.category_code || internship?._id,
-  title: internship?.category_name,
-  category: internship?.category_name,
-  duration: "1, 3, or 5 months",
-  price: internship?.price_1m,
-  originalPrice: internship?.price_3m,
-  level: "Self-paced",
-  enrolled: internship?.enrolled || 0,
-  rating: internship?.rating || 4.8,
-  reviews: internship?.reviews || 0,
-  modules: internship?.total_tasks_3m,
-  projects: internship?.total_tasks_1m,
-  skills: internship?.skills || [],
-  image:
-    internship?.image ||
-    "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&h=380&fit=crop&auto=format",
+const normalizeInternship = (item: any) => ({
+  id: item?.id || item?.category_code,
+  title: item?.title || item?.category_name,
+  code: item?.category_code,
+  category: item?.category_name,
+  description: item?.description,
+  icon: item?.icon || "📘",
+  rating: 4.8,
+  reviewsCount: 120,
+  popular: Boolean(item?.price_1m),
+  price1m: item?.price_1m,
+  price3m: item?.price_3m,
+  price5m: item?.price_5m,
 });
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -102,9 +134,9 @@ export const api = {
   auth: {
     login: async (email: string, password: string) => {
       const body = await post<any>("/auth/login", { college_email: email, password });
-      const token = (body as any)?.token;
-      if (token) tokenStore.set(token);
-      return { user: normalizeUser(unwrap<any>(body)), token: undefined };
+      const user = normalizeUser(unwrap<any>(body));
+      userStore.set(user);
+      return { user, token: undefined };
     },
 
     register: (data: {
@@ -125,12 +157,25 @@ export const api = {
         college_name: data.collegeName,
         year_of_study: data.yearOfStudy,
       }),
+
     verifyEmail: (token: string) =>
       post<{ message: string }>("/auth/verify-email", { token }),
 
+    refreshSession: async () => {
+      const body = await post<any>("/auth/refresh");
+      const user = normalizeUser(unwrap<any>(body));
+      userStore.set(user);
+      return user;
+    },
+
+    forgotPassword: (email: string) =>
+      post<{ message: string }>("/auth/forgot-password", { college_email: email }),
+
+    resetPassword: (data: { token: string; new_password: string }) =>
+      post<{ message: string }>("/auth/reset-password", data),
+
     logout: async () => {
       const result = await post<{ message: string }>("/auth/logout");
-      tokenStore.clear();
       userStore.clear();
       return result;
     },
@@ -208,53 +253,31 @@ export const api = {
         ...data,
         totalStudents: data.totalUsers ?? 0,
         totalInternships: data.totalInternships ?? 0,
-        pendingCerts: data.pendingSubmissions ?? 0,
+        activeEnrollments: data.activeEnrollments ?? 0,
+        completionRate: data.completionRate ?? "0%",
       };
     },
-    getUsers: async (params?: { search?: string }) => {
-      const query = new URLSearchParams();
-      if (params?.search) query.set("search", params.search);
-      const body = await get<any>(`/admin/users${query.toString() ? `?${query.toString()}` : ""}`);
-      return unwrap<any>(body);
+    getUsers: async () => {
+      const body = await get<any>("/admin/users");
+      return unwrap<any[]>(body);
     },
-    getEnrollments: async () => {
-      const body = await get<any>("/admin/enrollments");
-      return unwrap<any>(body);
-    },
-    getPendingSubmissions: async () => {
+    getSubmissions: async () => {
       const body = await get<any>("/admin/submissions/pending");
       return unwrap<any[]>(body);
     },
-    reviewSubmission: async (id: string, action: "approve" | "reject", notes?: string) => {
-      const body = await post<any>(`/admin/submissions/${id}/review`, { action, notes });
-      return unwrap<any>(body);
-    },
-    getPayments: async () => {
-      const body = await get<any>("/admin/payments");
-      return unwrap<any>(body);
-    },
+    reviewSubmission: (id: string, action: "approve" | "reject", notes?: string) =>
+      post(`/admin/submissions/${id}/review`, { action, notes }),
+    createInternship: (payload: unknown) => post("/admin/internships", payload),
+    updateInternship: (id: string, payload: unknown) => put(`/admin/internships/${id}`, payload),
     getCertificates: async () => {
       const body = await get<any>("/admin/certificates");
-      return unwrap<any>(body);
-    },
-    createInternship: (data: any) => post<any>("/admin/internships", data),
-    updateInternship: (id: string, data: any) => put<any>(`/admin/internships/${id}`, data),
-    revokeCertificate: (id: string) => post<any>(`/admin/certificates/${id}/revoke`),
-  },
-
-  payments: {
-    getMyPayments: async () => {
-      const body = await get<any>("/payments/my");
       return unwrap<any[]>(body);
     },
+    revokeCertificate: (id: string) => post(`/admin/certificates/${id}/revoke`),
   },
 
   contact: {
-    send: (data: { name: string; email: string; subject: string; message: string }) =>
-      post<{ message: string }>("/contact", data),
+    submit: (payload: { name: string; email: string; subject: string; message: string }) =>
+      post("/contact", payload),
   },
 };
-
-export { ApiError };
-
-//why this is not working
