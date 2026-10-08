@@ -82,6 +82,16 @@ export const submitTask = async (req, res, next) => {
     if (enrollment.status !== 'active') {
       return res.status(400).json(errorResponse('This enrollment is not active'));
     }
+
+    // Task 4.2: Enrollment expiry check (F14)
+    if (new Date() > new Date(enrollment.end_date)) {
+      return res.status(403).json(errorResponse('This enrollment has expired and no longer accepts submissions'));
+    }
+
+    // Task 4.3: Per-task deadline check (F32)
+    if (enrollment.current_task_due_at && new Date() > new Date(enrollment.current_task_due_at)) {
+      return res.status(400).json(errorResponse('The deadline for this task has passed. Please contact an administrator for an extension.'));
+    }
     const normalizedUrl = normalizeLinkedInUrl(linkedin_url);
     if (!normalizedUrl) {
       return res

@@ -1,11 +1,15 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Enrollment from '../models/Enrollment.js';
 import TaskSubmission from '../models/TaskSubmission.js';
 import Internship from '../models/Internship.js';
 import Payment from '../models/Payment.js';
 import Certificate from '../models/Certificate.js';
+import Outbox from '../models/Outbox.js';
+import AuditLog from '../models/AuditLog.js';
 import certificateGenerator from '../services/certificateGenerator.js';
 import { sendTaskApproved, sendTaskRejected } from '../services/email.js';
+import { logAuditEvent } from '../services/auditLogger.js';
 import {
   escapeRegex,
   parsePagination,
@@ -158,6 +162,9 @@ export const getPendingSubmissions = async (req, res, next) => {
 };
 
 export const reviewSubmission = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const action =
       req.body.action ||
@@ -169,62 +176,144 @@ export const reviewSubmission = async (req, res, next) => {
     const notes = req.body.notes || req.body.review_notes;
 
     if (!['approve', 'reject'].includes(action)) {
+      await session.abortTransaction();
       return res.status(400).json(errorResponse('action must be "approve" or "reject"'));
     }
 
-    const submission = await TaskSubmission.findById(req.params.id).populate('enrollment_id');
-    if (!submission) return res.status(404).json(errorResponse('Submission not found'));
-
-    const enrollment = await Enrollment.findById(
-      submission.enrollment_id._id || submission.enrollment_id
+    // Atomic update: only transition if status is currently 'pending' (Task 4.1 / F8)
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const submission = await TaskSubmission.findOneAndUpdate(
+      { _id: req.params.id, status: 'pending' },
+      {
+        $set: {
+          status: newStatus,
+          reviewed_by: req.user.id,
+          reviewed_at: new Date(),
+          review_notes: notes
+        }
+      },
+      { session, new: true }
     );
-    const user = await User.findById(enrollment.user_id);
 
-    submission.status = action === 'approve' ? 'approved' : 'rejected';
-    submission.reviewed_by = req.user.id;
-    submission.reviewed_at = new Date();
-    submission.review_notes = notes;
-    await submission.save();
+    if (!submission) {
+      await session.abortTransaction();
+      const existing = await TaskSubmission.findById(req.params.id);
+      if (!existing) return res.status(404).json(errorResponse('Submission not found'));
+      return res.status(409).json(errorResponse('Submission has already been reviewed'));
+    }
+
+    const enrollment = await Enrollment.findById(submission.enrollment_id).session(session);
+    if (!enrollment) {
+      await session.abortTransaction();
+      return res.status(404).json(errorResponse('Enrollment not found'));
+    }
+
+    // SEC-12: Concurrency & Stale Check
+    // Verify that submission task_number matches enrollment's current_task
+    if (submission.task_number !== enrollment.current_task) {
+      await session.abortTransaction();
+      return res.status(409).json(
+        errorResponse('Stale review attempt: submission task number does not match enrollment current task')
+      );
+    }
+
+    const user = await User.findById(enrollment.user_id).session(session);
+    const isLastTask = submission.task_number === enrollment.total_tasks;
 
     if (action === 'approve') {
-      const isLastTask = submission.task_number === enrollment.total_tasks;
-
       if (isLastTask) {
-        enrollment.status = 'completed';
-        await enrollment.save();
-        await certificateGenerator.generate(enrollment._id);
-      } else {
-        enrollment.current_task = submission.task_number + 1;
-        await enrollment.save();
-      }
+        enrollment.transitionTo('completed');
+        await enrollment.save({ session });
 
-      if (user?.college_email) {
-        await sendTaskApproved(user.college_email, {
+        // Task 4.4 / SEC-13: Write Outbox certificate generation event atomically in the transaction
+        await Outbox.create(
+          [
+            {
+              event_type: 'generate_certificate',
+              payload: {
+                enrollment_id: enrollment._id,
+                user_id: enrollment.user_id
+              },
+              idempotency_key: `cert-outbox-${enrollment._id}`
+            }
+          ],
+          { session }
+        );
+      } else {
+        // Advance current_task exactly once
+        enrollment.current_task = submission.task_number + 1;
+
+        // Task 4.3: Set due_at deadline for the newly current task
+        const internship = await Internship.findById(enrollment.internship_id).session(session);
+        const durationKey = `${enrollment.duration_months}m`;
+        const nextTaskDef = internship?.syllabus?.[durationKey]?.find(
+          (t) => t.task_number === enrollment.current_task
+        );
+        const deadlineDays = nextTaskDef?.deadline_days || 7;
+        enrollment.current_task_due_at = new Date(Date.now() + deadlineDays * 24 * 60 * 60 * 1000);
+        await enrollment.save({ session });
+      }
+    } else {
+      // Rejection keeps current_task unchanged
+      await enrollment.save({ session });
+    }
+
+    // Task 4.5: Append-only audit log
+    await logAuditEvent({
+      actorId: req.user.id,
+      action: `task_review_${action}`,
+      targetType: 'TaskSubmission',
+      targetId: submission._id,
+      beforeState: { status: 'pending', task_number: submission.task_number },
+      afterState: { status: submission.status, current_task: enrollment.current_task },
+      reason: notes,
+      req,
+      session
+    });
+
+    await session.commitTransaction();
+
+    // Send notifications outside the transaction asynchronously
+    if (user?.college_email) {
+      if (action === 'approve') {
+        void sendTaskApproved(user.college_email, {
           name: user.full_name,
           taskNumber: submission.task_number,
           nextTask: isLastTask ? null : submission.task_number + 1,
           isLastTask
         });
+      } else {
+        void sendTaskRejected(user.college_email, {
+          name: user.full_name,
+          taskNumber: submission.task_number,
+          reason: notes
+        });
       }
-    } else if (user?.college_email) {
-      await sendTaskRejected(user.college_email, {
-        name: user.full_name,
-        taskNumber: submission.task_number,
-        reason: notes
-      });
     }
 
     return res.json(successResponse({ data: submission }));
   } catch (err) {
+    await session.abortTransaction();
     next(err);
+  } finally {
+    session.endSession();
   }
 };
 
 export const createInternship = async (req, res, next) => {
   try {
-    // Task 3.4 / F26: Pick only explicitly allowed fields, rejecting arbitrary or privileged injection
     const safeData = filterAllowedFields(req.body);
     const internship = await Internship.create(safeData);
+
+    await logAuditEvent({
+      actorId: req.user.id,
+      action: 'internship_created',
+      targetType: 'Internship',
+      targetId: internship._id,
+      afterState: safeData,
+      req
+    });
+
     return res.status(201).json(successResponse({ data: internship }));
   } catch (err) {
     next(err);
@@ -233,14 +322,99 @@ export const createInternship = async (req, res, next) => {
 
 export const updateInternship = async (req, res, next) => {
   try {
-    // Task 3.4 / F26: Pick only explicitly allowed fields
     const safeData = filterAllowedFields(req.body);
+    const existing = await Internship.findById(req.params.id);
+    if (!existing) return res.status(404).json(errorResponse('Internship not found'));
+
     const internship = await Internship.findByIdAndUpdate(req.params.id, safeData, {
       new: true,
       runValidators: true
     });
-    if (!internship) return res.status(404).json(errorResponse('Internship not found'));
+
+    await logAuditEvent({
+      actorId: req.user.id,
+      action: 'internship_updated',
+      targetType: 'Internship',
+      targetId: internship._id,
+      beforeState: { category_code: existing.category_code, category_name: existing.category_name },
+      afterState: safeData,
+      req
+    });
+
     return res.json(successResponse({ data: internship }));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const extendDeadline = async (req, res, next) => {
+  try {
+    const { additional_days, new_due_date, new_end_date, reason } = req.body;
+    const enrollment = await Enrollment.findById(req.params.id);
+    if (!enrollment) return res.status(404).json(errorResponse('Enrollment not found'));
+
+    const beforeState = {
+      current_task_due_at: enrollment.current_task_due_at,
+      end_date: enrollment.end_date
+    };
+
+    if (additional_days) {
+      const days = parseInt(additional_days, 10);
+      const baseTime = enrollment.current_task_due_at
+        ? enrollment.current_task_due_at.getTime()
+        : Date.now();
+      enrollment.current_task_due_at = new Date(baseTime + days * 24 * 60 * 60 * 1000);
+    } else if (new_due_date) {
+      enrollment.current_task_due_at = new Date(new_due_date);
+    }
+
+    if (new_end_date) {
+      enrollment.end_date = new Date(new_end_date);
+    }
+
+    await enrollment.save();
+
+    await logAuditEvent({
+      actorId: req.user.id,
+      action: 'deadline_extended',
+      targetType: 'Enrollment',
+      targetId: enrollment._id,
+      beforeState,
+      afterState: {
+        current_task_due_at: enrollment.current_task_due_at,
+        end_date: enrollment.end_date
+      },
+      reason,
+      req
+    });
+
+    return res.json(successResponse({ data: enrollment }, 'Deadline extended successfully'));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getAuditLogs = async (req, res, next) => {
+  try {
+    const { page, limit, skip } = parsePagination(req.query, 20, 100);
+    const filter = {};
+    if (req.query.action) filter.action = req.query.action;
+    if (req.query.target_type) filter.target_type = req.query.target_type;
+
+    const [logs, total] = await Promise.all([
+      AuditLog.find(filter)
+        .populate('actor_id', 'full_name college_email role')
+        .skip(skip)
+        .limit(limit)
+        .sort({ created_at: -1, _id: -1 }),
+      AuditLog.countDocuments(filter)
+    ]);
+
+    return res.json(
+      successResponse({
+        data: { logs, total, page, pages: Math.ceil(total / limit) }
+      })
+    );
   } catch (err) {
     next(err);
   }
@@ -312,6 +486,15 @@ export const revokeCertificate = async (req, res, next) => {
 
     certificate.is_revoked = true;
     await certificate.save();
+
+    await logAuditEvent({
+      actorId: req.user.id,
+      action: 'certificate_revoked',
+      targetType: 'Certificate',
+      targetId: certificate._id,
+      reason: req.body?.reason,
+      req
+    });
 
     return res.json(successResponse({}, 'Certificate revoked successfully'));
   } catch (err) {

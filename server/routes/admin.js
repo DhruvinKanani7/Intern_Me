@@ -17,7 +17,9 @@ import {
   updateInternship,
   getPayments,
   getCertificates,
-  revokeCertificate
+  revokeCertificate,
+  extendDeadline,
+  getAuditLogs
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -27,6 +29,7 @@ router.use(auth, admin);
 router.get('/dashboard', getDashboard);
 router.get('/users', getUsers);
 router.get('/enrollments', getEnrollments);
+router.post('/enrollments/:id/extend', extendDeadline);
 router.get('/submissions/pending', getPendingSubmissions);
 router.post('/submissions/:id/review', validate(reviewTaskSchema), reviewSubmission);
 router.post('/internships', validate(createInternshipSchema), createInternship);
@@ -34,5 +37,6 @@ router.put('/internships/:id', validate(updateInternshipSchema), updateInternshi
 router.get('/payments', getPayments);
 router.get('/certificates', getCertificates);
 router.post('/certificates/:id/revoke', revokeCertificate);
+router.get('/audit-logs', getAuditLogs);
 
 export default router;
