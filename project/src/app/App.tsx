@@ -2018,7 +2018,7 @@ useEffect(() => {
                 </div>
                 {task.description && <p className="text-sm text-muted-foreground mt-3">{task.description}</p>}
                 {task.submission?.linkedin_url && (
-                  <a href={task.submission.linkedin_url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline mt-2 inline-flex items-center gap-1">
+                  <a href={task.submission.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline mt-2 inline-flex items-center gap-1">
                     View submission <ExternalLink className="w-3 h-3" />
                   </a>
                 )}

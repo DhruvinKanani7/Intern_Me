@@ -1,7 +1,12 @@
 import Enrollment from '../models/Enrollment.js';
 import TaskSubmission from '../models/TaskSubmission.js';
 import Internship from '../models/Internship.js';
-import { isValidLinkedInUrl, successResponse, errorResponse } from '../utils/helpers.js';
+import {
+  isValidLinkedInUrl,
+  normalizeLinkedInUrl,
+  successResponse,
+  errorResponse
+} from '../utils/helpers.js';
 
 const durationKey = (months) => `${months}m`;
 
@@ -77,8 +82,11 @@ export const submitTask = async (req, res, next) => {
     if (enrollment.status !== 'active') {
       return res.status(400).json(errorResponse('This enrollment is not active'));
     }
-    if (!isValidLinkedInUrl(linkedin_url)) {
-      return res.status(400).json(errorResponse('Please provide a valid LinkedIn post URL'));
+    const normalizedUrl = normalizeLinkedInUrl(linkedin_url);
+    if (!normalizedUrl) {
+      return res
+        .status(400)
+        .json(errorResponse('Please provide a valid LinkedIn URL (e.g. https://www.linkedin.com/posts/... or https://www.linkedin.com/in/...)'));
     }
 
     const existing = await TaskSubmission.findOne({
@@ -91,7 +99,7 @@ export const submitTask = async (req, res, next) => {
     }
 
     if (existing && existing.status === 'rejected') {
-      existing.linkedin_url = linkedin_url;
+      existing.linkedin_url = normalizedUrl;
       existing.status = 'pending';
       existing.review_notes = undefined;
       existing.reviewed_by = undefined;
@@ -104,7 +112,7 @@ export const submitTask = async (req, res, next) => {
     await TaskSubmission.create({
       enrollment_id: enrollment._id,
       task_number: enrollment.current_task,
-      linkedin_url
+      linkedin_url: normalizedUrl
     });
 
     return res.json(successResponse({}, 'Task submitted successfully'));

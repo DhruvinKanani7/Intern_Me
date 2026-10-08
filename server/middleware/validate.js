@@ -1,17 +1,21 @@
 import mongoose from 'mongoose';
 import { AppError } from '../utils/AppError.js';
 
-export const validate = (schemas = {}) => {
+export const validate = (schemaOrMap = {}) => {
   return async (req, res, next) => {
     try {
-      if (schemas.params && req.params) {
-        req.params = await schemas.params.parseAsync(req.params);
-      }
-      if (schemas.query && req.query) {
-        req.query = await schemas.query.parseAsync(req.query);
-      }
-      if (schemas.body && req.body) {
-        req.body = await schemas.body.parseAsync(req.body);
+      if (typeof schemaOrMap?.parseAsync === 'function') {
+        req.body = await schemaOrMap.parseAsync(req.body);
+      } else {
+        if (schemaOrMap.params && req.params) {
+          req.params = await schemaOrMap.params.parseAsync(req.params);
+        }
+        if (schemaOrMap.query && req.query) {
+          req.query = await schemaOrMap.query.parseAsync(req.query);
+        }
+        if (schemaOrMap.body && req.body) {
+          req.body = await schemaOrMap.body.parseAsync(req.body);
+        }
       }
       next();
     } catch (err) {
