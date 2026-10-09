@@ -30,7 +30,16 @@ export const generalLimiter = rateLimit({
 
     res.status(429).json({
       success: false,
-   message: "Too many requests. Please slow down."
+      message: "Too many requests. Please slow down."
     });
   }
 });
+
+export const verifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'test' ? 1000 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many verification attempts. Please try again later.' }
+});
+

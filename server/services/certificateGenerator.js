@@ -17,6 +17,7 @@ const uploadPdfToCloudinary = (buffer, certId) =>
         folder: 'interncert/certificates',
         public_id: certId,
         format: 'pdf',
+        type: 'authenticated',
         overwrite: false
       },
       (error, result) => {
@@ -36,8 +37,6 @@ const generateCertId = () => {
 // document, and emails it to the student. Called when the final task of an
 // enrollment is approved.
 const generate = async (enrollmentId) => {
-  
-
   const enrollment = await Enrollment.findById(enrollmentId).populate('internship_id');
   if (!enrollment) throw new Error('Enrollment not found for certificate generation');
 
@@ -47,7 +46,10 @@ const generate = async (enrollmentId) => {
     : await Internship.findById(enrollment.internship_id);
 
   const certId = generateCertId();
-  const verifyUrl = `${process.env.FRONTEND_URL}/verify/${enrollment.internship_code}`;
+  // Task 5.1: 128-bit base64url opaque verification ID
+  const verificationCode = crypto.randomBytes(16).toString('base64url');
+  // Task 5.2 / 5.4: Frontend route /verify/:code
+  const verifyUrl = `${process.env.FRONTEND_URL}/verify/${verificationCode}`;
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 200 });
   const qrBase64 = qrDataUrl.replace(/^data:image\/png;base64,/, '');
   const qrBuffer = Buffer.from(qrBase64, 'base64');
@@ -124,14 +126,18 @@ const generate = async (enrollmentId) => {
   const certificate = await Certificate.create({
     enrollment_id: enrollment._id,
     cert_id: certId,
+    verification_code: verificationCode,
     internship_code: enrollment.internship_code,
     full_name: user.full_name,
     internship_name: internship.category_name,
     duration: `${enrollment.duration_months} Month${enrollment.duration_months > 1 ? 's' : ''}`,
     start_date: enrollment.start_date,
     end_date: enrollment.end_date,
+    verification_url: verifyUrl,
     qr_code_url: verifyUrl,
-    pdf_url: pdfUrlPublic
+    qr_data_url: qrDataUrl,
+    pdf_url: pdfUrlPublic,
+    cloudinary_public_id: uploadResult.public_id || `interncert/certificates/${certId}`
   });
 
   await sendCertificateEmail(user.college_email, {

@@ -2171,10 +2171,10 @@ function StudentCerts({ certificates, loading }: { certificates: any[]; loading:
             </div>
             {!certificate.is_revoked && (
               <div className="flex gap-2">
-                <a href={certificate.pdf_url} target="_blank" rel="noreferrer" className="p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Download">
+                <a href={certificate.download_url || certificate.pdf_url} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Download">
                   <Download className="w-4 h-4" />
                 </a>
-                <a href={certificate.qr_code_url} target="_blank" rel="noreferrer" className="p-2.5 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors" title="QR Code">
+                <a href={certificate.verification_url || certificate.qr_code_url} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors" title="Verify Certificate">
                   <QrCode className="w-4 h-4" />
                 </a>
               </div>
@@ -2972,20 +2972,19 @@ function AdminPmts() {
 }
 
 // ── Certificate Verification ───────────────────────────────────────────────────
-function CertVerifyPage() {
-  const [internshipCode, setInternshipCode] = useState("");
+function CertVerifyPage({ initialCode }: { initialCode?: string | null }) {
+  const [internshipCode, setInternshipCode] = useState(initialCode || "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [searched, setSearched] = useState(false);
   const verifiedCertificate = result?.certificate || result?.data || null;
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!internshipCode.trim()) return;
+  const performVerify = async (codeToVerify: string) => {
+    if (!codeToVerify.trim()) return;
     setLoading(true);
     setResult(null);
     try {
-      const res = await api.certificates.verify(internshipCode.trim());
+      const res = await api.certificates.verify(codeToVerify.trim());
       setResult(res);
     } catch {
       setResult({ valid: false });
@@ -2993,6 +2992,18 @@ function CertVerifyPage() {
       setSearched(true);
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (initialCode && initialCode.trim()) {
+      setInternshipCode(initialCode.trim());
+      performVerify(initialCode.trim());
+    }
+  }, [initialCode]);
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    performVerify(internshipCode);
   };
 
   return (
@@ -3326,7 +3337,7 @@ function pathForPage(p: Page, id?: string | null): string {
     case "register": return "/register";
     case "student": return "/student";
     case "admin": return "/admin";
-    case "verify": return "/verify";
+    case "verify": return id ? `/verify/${encodeURIComponent(id)}` : "/verify";
     case "about": return "/about";
     case "contact": return "/contact";
     case "pricing": return "/pricing";
@@ -3345,7 +3356,13 @@ function parsePathname(pathname: string): { page: Page; id: string | null } {
   if (pathname === "/register") return { page: "register", id: null };
   if (pathname === "/student") return { page: "student", id: null };
   if (pathname === "/admin") return { page: "admin", id: null };
-  if (pathname === "/verify") return { page: "verify", id: null };
+  const verifyMatch = pathname.match(/^\/verify\/([^/]+)\/?$/);
+  if (verifyMatch) return { page: "verify", id: decodeURIComponent(verifyMatch[1]) };
+  if (pathname === "/verify") {
+    const urlParams = new URLSearchParams(window.location.search);
+    const codeParam = urlParams.get("code");
+    return { page: "verify", id: codeParam };
+  }
   if (pathname === "/about") return { page: "about", id: null };
   if (pathname === "/contact") return { page: "contact", id: null };
   if (pathname === "/pricing") return { page: "pricing", id: null };
@@ -3469,7 +3486,7 @@ export default function App() {
             {page === "register" && <RegisterPage />}
             {page === "student" && <StudentDashboard />}
             {page === "admin" && <AdminDashboard />}
-            {page === "verify" && <><CertVerifyPage /><Footer /></>}
+            {page === "verify" && <><CertVerifyPage initialCode={selectedId} /><Footer /></>}
             {page === "about" && <><AboutPage /><Footer /></>}
             {page === "contact" && <><ContactPage /><Footer /></>}
             {page === "pricing" && <><PricingPage /><Footer /></>}
