@@ -11,6 +11,11 @@ import certificateGenerator from '../services/certificateGenerator.js';
 import { sendTaskApproved, sendTaskRejected } from '../services/email.js';
 import { logAuditEvent } from '../services/auditLogger.js';
 import {
+  generateMfaSetup,
+  verifyMfaToken,
+  generateBackupCodes
+} from '../services/mfaService.js';
+import {
   escapeRegex,
   parsePagination,
   successResponse,
@@ -501,3 +506,104 @@ export const revokeCertificate = async (req, res, next) => {
     next(err);
   }
 };
+
+export const setupAdminMfa = async (req, res, next) => {
+  try {
+    const adminUser = await User.findById(req.user.id);
+    if (!adminUser) return res.status(404).json(errorResponse('Admin not found'));
+
+    const { secret, otpauthUrl, qrCodeDataUrl } = await generateMfaSetup(adminUser);
+    adminUser.mfa_secret = secret;
+    await adminUser.save();
+
+    return res.json(
+      successResponse({
+        data: {
+          secret,
+          otpauthUrl,
+          qrCodeDataUrl
+        }
+      }, 'MFA setup initialized')
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const enableAdminMfa = async (req, res, next) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json(errorResponse('Verification code required'));
+
+    const adminUser = await User.findById(req.user.id);
+    if (!adminUser || !adminUser.mfa_secret) {
+      return res.status(400).json(errorResponse('MFA setup not initialized'));
+    }
+
+    const isValid = verifyMfaToken(adminUser.mfa_secret, code);
+    if (!isValid) {
+      return res.status(400).json(errorResponse('Invalid MFA verification code'));
+    }
+
+    const { rawCodes, hashedCodes } = generateBackupCodes(8);
+    adminUser.mfa_enabled = true;
+    adminUser.mfa_backup_codes = hashedCodes;
+    await adminUser.save();
+
+    await logAuditEvent({
+      actorId: adminUser._id,
+      action: 'admin_mfa_enabled',
+      targetType: 'User',
+      targetId: adminUser._id,
+      req
+    });
+
+    return res.json(
+      successResponse({
+        data: {
+          backupCodes: rawCodes
+        }
+      }, 'MFA enabled successfully')
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const disableAdminMfa = async (req, res, next) => {
+  try {
+    const { code, password } = req.body;
+    const adminUser = await User.findById(req.user.id);
+    if (!adminUser) return res.status(404).json(errorResponse('Admin not found'));
+
+    let isAuthorized = false;
+    if (code && adminUser.mfa_secret) {
+      isAuthorized = verifyMfaToken(adminUser.mfa_secret, code);
+    }
+    if (!isAuthorized && password) {
+      isAuthorized = await adminUser.comparePassword(password);
+    }
+
+    if (!isAuthorized) {
+      return res.status(401).json(errorResponse('Valid MFA code or password required to disable MFA'));
+    }
+
+    adminUser.mfa_enabled = false;
+    adminUser.mfa_secret = undefined;
+    adminUser.mfa_backup_codes = [];
+    await adminUser.save();
+
+    await logAuditEvent({
+      actorId: adminUser._id,
+      action: 'admin_mfa_disabled',
+      targetType: 'User',
+      targetId: adminUser._id,
+      req
+    });
+
+    return res.json(successResponse({}, 'MFA disabled successfully'));
+  } catch (err) {
+    next(err);
+  }
+};
+

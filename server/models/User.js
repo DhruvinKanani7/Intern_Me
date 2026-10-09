@@ -15,6 +15,9 @@ const userSchema = new Schema({
   role: { type: String, enum: ['student', 'admin'], default: 'student' },
   token_version: { type: Number, default: 0 },
   is_disabled: { type: Boolean, default: false },
+  mfa_enabled: { type: Boolean, default: false },
+  mfa_secret: { type: String },
+  mfa_backup_codes: [{ type: String }],
   email_verification_token: { type: String, maxlength: 256 },
   email_token_expires: Date,
   reset_token: { type: String, maxlength: 256 },
@@ -47,6 +50,8 @@ userSchema.methods.toJSON = function () {
   delete obj.password;
   delete obj.email_verification_token;
   delete obj.reset_token;
+  delete obj.mfa_secret;
+  delete obj.mfa_backup_codes;
   return obj;
 };
 

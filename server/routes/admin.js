@@ -19,12 +19,18 @@ import {
   getCertificates,
   revokeCertificate,
   extendDeadline,
-  getAuditLogs
+  getAuditLogs,
+  setupAdminMfa,
+  enableAdminMfa,
+  disableAdminMfa
 } from '../controllers/adminController.js';
+
+import { adminLimiter } from '../middleware/rateLimiter.js';
+import requireAdminMfa from '../middleware/requireAdminMfa.js';
 
 const router = express.Router();
 
-router.use(auth, admin);
+router.use(adminLimiter, auth, admin);
 
 router.get('/dashboard', getDashboard);
 router.get('/users', getUsers);
@@ -36,7 +42,13 @@ router.post('/internships', validate(createInternshipSchema), createInternship);
 router.put('/internships/:id', validate(updateInternshipSchema), updateInternship);
 router.get('/payments', getPayments);
 router.get('/certificates', getCertificates);
-router.post('/certificates/:id/revoke', revokeCertificate);
+// Task 6.3 / SEC-15: MFA step-up required for certificate revocation
+router.post('/certificates/:id/revoke', requireAdminMfa, revokeCertificate);
 router.get('/audit-logs', getAuditLogs);
+
+// MFA Enrollment & Management
+router.post('/mfa/setup', setupAdminMfa);
+router.post('/mfa/enable', enableAdminMfa);
+router.post('/mfa/disable', disableAdminMfa);
 
 export default router;

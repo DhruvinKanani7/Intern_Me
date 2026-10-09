@@ -11,11 +11,12 @@ import {
   getMyEnrollments,
   getEnrollmentById
 } from '../controllers/enrollController.js';
+import { paymentsLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
-router.post('/create-order', auth, validate(createOrderSchema), createOrderHandler);
-router.post('/verify-payment', auth, validate(verifyPaymentSchema), verifyPaymentHandler);
+router.post('/create-order', paymentsLimiter, auth, validate(createOrderSchema), createOrderHandler);
+router.post('/verify-payment', paymentsLimiter, auth, validate(verifyPaymentSchema), verifyPaymentHandler);
 router.get('/my', auth, getMyEnrollments);
 router.get('/:id', auth, validateObjectIdParam('id'), getEnrollmentById);
 

@@ -21,6 +21,9 @@ const envSchema = z
     CLOUDINARY_CLOUD_NAME: z.string().optional().default(''),
     CLOUDINARY_API_KEY: z.string().optional().default(''),
     CLOUDINARY_API_SECRET: z.string().optional().default(''),
+    REDIS_URL: z.string().optional().default(''),
+    TURNSTILE_SECRET_KEY: z.string().optional().default(''),
+    ADMIN_MFA_ENFORCED: z.coerce.boolean().default(false),
     TRUST_PROXY: z.string().default('1')
   })
   .superRefine((data, ctx) => {

@@ -11,6 +11,7 @@ import {
   errorResponse
 } from '../utils/helpers.js';
 import { sendVerificationEmail, sendPasswordReset } from '../services/email.js';
+import { checkEmailCooldown, isCaptchaRequired, verifyCaptcha } from '../services/abuseProtection.js';
 
 const isProd = env.NODE_ENV === 'production';
 
@@ -275,11 +276,29 @@ export const logout = async (req, res, next) => {
 // ── Forgot Password ───────────────────────────────────────────────────────────
 export const forgotPassword = async (req, res, next) => {
   try {
-    const { college_email } = req.body;
+    const { college_email, captcha_token } = req.body;
+    const normalizedEmail = college_email?.toLowerCase().trim();
     const genericMessage =
       'If an account with this email exists, a password reset link has been sent.';
 
-    const user = await User.findOne({ college_email: college_email?.toLowerCase().trim() });
+    // Task 6.2: CAPTCHA check if IP threshold exceeded
+    const captchaRequired = await isCaptchaRequired(req.ip, 'reset', 3);
+    if (captchaRequired) {
+      const isValidCaptcha = await verifyCaptcha(captcha_token, req.ip);
+      if (!isValidCaptcha) {
+        return res.status(400).json(errorResponse('CAPTCHA verification required'));
+      }
+    }
+
+    // Task 6.2: Per-email cooldown (60 seconds)
+    const { allowed, retryAfter } = await checkEmailCooldown(normalizedEmail, 'reset', 60);
+    if (!allowed) {
+      return res.status(429).json(
+        errorResponse(`Please wait ${retryAfter} seconds before requesting another password reset email.`)
+      );
+    }
+
+    const user = await User.findOne({ college_email: normalizedEmail });
     if (user) {
       const rawResetToken = generateRandomToken(32);
       user.reset_token = hashToken(rawResetToken);
