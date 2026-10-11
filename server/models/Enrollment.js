@@ -23,9 +23,9 @@ const enrollmentSchema = new Schema({
   updated_at: { type: Date, default: Date.now }
 });
 
-// Enrollment state machine transitions (Task 4.2 / F14)
+// Enrollment state machine transitions (Task 4.2 / F14 / Task 7.1)
 const ALLOWED_TRANSITIONS = {
-  active: ['completed', 'expired'],
+  active: ['completed', 'expired', 'closed'],
   expired: ['closed'],
   completed: [],
   closed: []

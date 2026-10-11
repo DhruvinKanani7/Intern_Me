@@ -8,7 +8,8 @@ import {
   forgotPassword,
   resetPassword,
   getMe,
-  getCsrfToken
+  getCsrfToken,
+  updateProfile
 } from '../controllers/authController.js';
 import auth from '../middleware/auth.js';
 import { loginLimiter, registerLimiter, resetPasswordLimiter } from '../middleware/rateLimiter.js';
@@ -32,5 +33,7 @@ router.get('/csrf', getCsrfToken);
 router.post('/forgot-password', resetPasswordLimiter, validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', resetPasswordLimiter, validate(resetPasswordSchema), resetPassword);
 router.get('/me', auth, getMe);
+router.put('/me', auth, updateProfile);
+router.put('/profile', auth, updateProfile);
 
 export default router;

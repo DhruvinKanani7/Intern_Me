@@ -373,3 +373,29 @@ export const getMe = async (req, res, next) => {
     next(err);
   }
 };
+
+// ── Update Current Profile (Task 7.4) ─────────────────────────────────────────
+export const updateProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json(errorResponse('User not found'));
+
+    const { full_name, college_name, course, year_of_study } = req.body;
+
+    if (full_name !== undefined) user.full_name = String(full_name).trim();
+    if (college_name !== undefined) user.college_name = String(college_name).trim();
+    if (course !== undefined) user.course = String(course).trim();
+    if (year_of_study !== undefined && year_of_study !== '') {
+      const year = Number(year_of_study);
+      if (year >= 1 && year <= 6) {
+        user.year_of_study = year;
+      }
+    }
+
+    await user.save();
+    return res.json(successResponse({ data: user }, 'Profile updated successfully'));
+  } catch (err) {
+    next(err);
+  }
+};
+

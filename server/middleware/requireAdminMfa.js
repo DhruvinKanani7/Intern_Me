@@ -27,8 +27,10 @@ export const requireAdminMfa = async (req, res, next) => {
 
       const mfaCode =
         req.headers['x-admin-mfa-code'] ||
+        req.headers['x-admin-mfa-token'] ||
         req.headers['x-mfa-code'] ||
         req.body?.mfa_code ||
+        req.body?.mfa_token ||
         req.query?.mfa_code;
 
       if (!mfaCode) {

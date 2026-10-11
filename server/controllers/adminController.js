@@ -10,6 +10,7 @@ import AuditLog from '../models/AuditLog.js';
 import certificateGenerator from '../services/certificateGenerator.js';
 import { sendTaskApproved, sendTaskRejected } from '../services/email.js';
 import { logAuditEvent } from '../services/auditLogger.js';
+import { processRefund } from '../services/refundService.js';
 import {
   generateMfaSetup,
   verifyMfaToken,
@@ -602,6 +603,29 @@ export const disableAdminMfa = async (req, res, next) => {
     });
 
     return res.json(successResponse({}, 'MFA disabled successfully'));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const refundPayment = async (req, res, next) => {
+  try {
+    const { amount, reason, force } = req.body;
+    const result = await processRefund({
+      paymentId: req.params.id,
+      amount,
+      reason,
+      actorId: req.user.id,
+      force: Boolean(force),
+      req
+    });
+
+    return res.json(
+      successResponse(
+        { data: result },
+        result.isFullRefund ? 'Payment fully refunded' : 'Payment partially refunded'
+      )
+    );
   } catch (err) {
     next(err);
   }

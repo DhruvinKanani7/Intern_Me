@@ -46,6 +46,20 @@ class MockRazorpayClient {
           currency: 'INR',
           status: 'captured'
         };
+      },
+      refund: async (paymentId, options = {}) => {
+        const refundId = `rfnd_mock_${crypto.randomUUID().replace(/-/g, '').substring(0, 14)}`;
+        return {
+          id: refundId,
+          entity: 'refund',
+          amount: options.amount || 99900,
+          currency: 'INR',
+          payment_id: paymentId,
+          notes: options.notes || {},
+          status: 'processed',
+          speed: 'normal',
+          created_at: Math.floor(Date.now() / 1000)
+        };
       }
     };
   }
@@ -57,6 +71,16 @@ export const razorpayInstance = isMock
       key_id: env.RAZORPAY_KEY_ID,
       key_secret: env.RAZORPAY_KEY_SECRET
     });
+
+export const createRefund = async ({ paymentId, amount, notes = {} }) => {
+  const options = {
+    notes
+  };
+  if (amount) {
+    options.amount = Math.round(amount * 100); // convert rupees to paise
+  }
+  return razorpayInstance.payments.refund(paymentId, options);
+};
 
 export const createOrder = async ({ amount, receipt, notes }) => {
   return razorpayInstance.orders.create({

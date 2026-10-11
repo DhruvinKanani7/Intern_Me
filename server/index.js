@@ -19,6 +19,8 @@ import verifyRoutes from './routes/verify.js';
 import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payments.js';
 import contactRoutes from './routes/contact.js';
+import statsRoutes from './routes/stats.js';
+import seedDefaultTestimonials from './utils/seedTestimonials.js';
 
 const app = express();
 
@@ -89,6 +91,7 @@ app.use('/api/verify', verifyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api', statsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) =>
@@ -103,9 +106,10 @@ app.use((req, res) => {
 // Centralized error handler (Phase 0.3 / F21)
 app.use(errorHandler);
 
-// If not in test mode, connect DB and listen
+// If not in test mode, connect DB, seed data, and listen
 if (env.NODE_ENV !== 'test') {
-  connectDB().then(() => {
+  connectDB().then(async () => {
+    await seedDefaultTestimonials();
     app.listen(env.PORT, () => {
       logger.info(`InternCert server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
     });

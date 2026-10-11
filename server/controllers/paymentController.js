@@ -149,6 +149,15 @@ export const handlePaymentWebhook = async (req, res, next) => {
         payment.refunded_amount = payment.amount;
         payment.processed_events.push(eventId);
         await payment.save();
+
+        if (payment.enrollment_id) {
+          const enrollment = await Enrollment.findById(payment.enrollment_id);
+          if (enrollment && (enrollment.status === 'active' || enrollment.status === 'expired')) {
+            enrollment.transitionTo('closed');
+            await enrollment.save();
+          }
+        }
+
         return res.json({ status: 'refund_recorded' });
       }
     }

@@ -68,7 +68,7 @@ const TESTIMONIALS = [
   },
   {
     name: "Rahul Gupta", role: "Growth Manager at Razorpay", rating: 5,
-    text: "Real campaign experience with actual budgets and analytics data. The experience letter was a huge differentiator throughout my entire job search.",
+    text: "Real campaign experience with actual budgets and analytics data. The verified certificate and project portfolio were huge differentiators throughout my entire job search.",
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&auto=format",
     program: "Digital Marketing & Growth",
   },
@@ -76,9 +76,9 @@ const TESTIMONIALS = [
 
 const FAQS = [
   { q: "Are these certificates recognized by companies?", a: "Yes — each certificate has a unique QR code employers can scan instantly to verify authenticity on our public verification portal." },
-  { q: "What certificates do I receive upon completion?", a: "You receive an Internship Completion Certificate, a Project Certificate for each completed project, and an Experience Letter based on your performance." },
+  { q: "What certificates do I receive upon completion?", a: "You receive an official, QR-verified Internship Completion Certificate with tamper-proof digital verification." },
   { q: "Is the internship self-paced?", a: "Yes. All programs are self-paced with flexible deadlines. Recommended weekly milestones help you stay on track without pressure." },
-  { q: "What is the refund policy?", a: "Full refund within 7 days of purchase. Partial refund within 30 days if less than 30% of the program is completed. No questions asked." },
+  { q: "What is the refund policy?", a: "Full refund within 7 days of purchase. Partial refund within 30 days if less than 30% of the program is completed. Processed securely via Razorpay." },
   { q: "What payment methods are accepted?", a: "All major credit/debit cards, UPI, net banking, and wallets via secure Razorpay integration. EMI options are available on select programs." },
   { q: "How does QR certificate verification work?", a: "Visit our verification page, enter the Certificate ID or scan the QR code. The system instantly confirms validity, student name, program, and issue date." },
 ];
@@ -467,24 +467,37 @@ function LandingPage() {
   const [featuredInternships, setFeaturedInternships] = useState<Internship[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
 
+  const [statsData, setStatsData] = useState<any>(null);
+  const [testimonialsList, setTestimonialsList] = useState<any[]>(TESTIMONIALS);
+
   useEffect(() => {
     api.internships.getAll()
       .then((data) => setFeaturedInternships((data || []).slice(0, 6)))
       .catch(() => setFeaturedInternships([]))
       .finally(() => setFeaturedLoading(false));
+
+    api.stats.get()
+      .then(setStatsData)
+      .catch(() => setStatsData(null));
+
+    api.testimonials.getAll()
+      .then((data) => {
+        if (data && data.length > 0) setTestimonialsList(data);
+      })
+      .catch(() => {});
   }, []);
 
   const stats = [
-    { value: "10K+", label: "Students Enrolled", icon: Users },
-    { value: "52", label: "Internship Programs", icon: Briefcase },
-    { value: "8K+", label: "Certificates Issued", icon: Award },
-    { value: "4.8★", label: "Average Rating", icon: Star },
+    { value: statsData ? `${statsData.totalStudents || 0}+` : "10K+", label: "Students Enrolled", icon: Users },
+    { value: statsData ? `${statsData.totalPrograms || 0}` : "52", label: "Internship Programs", icon: Briefcase },
+    { value: statsData ? `${statsData.certificatesIssued || 0}+` : "8K+", label: "Certificates Issued", icon: Award },
+    { value: statsData ? `${statsData.averageRating || 4.9}★` : "4.8★", label: "Average Rating", icon: Star },
   ];
 
   const howItWorks = [
     { step: "01", title: "Browse & Enroll", desc: "Explore 52+ programs, compare pricing, and securely enroll with Razorpay in minutes.", icon: Search },
     { step: "02", title: "Learn & Build", desc: "Complete modules, assignments, quizzes, and build real projects at your own pace.", icon: Code2 },
-    { step: "03", title: "Get Certified", desc: "Earn QR-verified certificates, download your experience letter, and share with employers.", icon: Award },
+    { step: "03", title: "Get Certified", desc: "Earn your QR-verified certificate, download tamper-proof credentials, and share directly with employers.", icon: Award },
   ];
 
   return (
@@ -627,7 +640,7 @@ function LandingPage() {
                 Every certificate comes with a unique QR code. Employers scan it and are taken directly to our verification portal — no doubts, instant trust.
               </p>
               <div className="flex flex-col gap-3 mb-8">
-                {["Internship Completion Certificate", "Project Certificate", "Experience Letter", "QR Code Verification"].map((item) => (
+                {["Internship Completion Certificate", "Verified Digital Credential", "Public Verification Portal", "Instant QR Code Verification"].map((item) => (
                   <div key={item} className="flex items-center gap-3 text-white/80 text-sm">
                     <CheckCircle className="w-4.5 h-4.5 text-emerald-400 flex-shrink-0" />
                     {item}
@@ -688,20 +701,28 @@ function LandingPage() {
             <p className="text-muted-foreground max-w-lg mx-auto">Thousands of students have launched their careers through RedNotice Academy.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {TESTIMONIALS.map((t, i) => (
-              <motion.div key={t.name} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08, duration: 0.5 }}
+            {testimonialsList.map((t, i) => (
+              <motion.div key={t.name || i} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08, duration: 0.5 }}
                 className="bg-card border border-border rounded-2xl p-7 hover:border-primary/20 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
-                <StarRow rating={t.rating} />
+                <StarRow rating={t.rating || 5} />
                 <p className="text-foreground text-base mt-4 mb-5 leading-relaxed">&ldquo;{t.text}&rdquo;</p>
                 <div className="flex items-center gap-3">
-                  <img src={t.avatar} alt={t.name} className="w-10 h-10 rounded-full object-cover bg-muted" />
+                  {t.avatar ? (
+                    <img src={t.avatar} alt={t.name} className="w-10 h-10 rounded-full object-cover bg-muted" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm">
+                      {t.name ? t.name[0] : "S"}
+                    </div>
+                  )}
                   <div>
                     <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.role}</p>
+                    <p className="text-xs text-muted-foreground">{t.role}{t.company ? ` at ${t.company}` : ""}</p>
                   </div>
-                  <div className="ml-auto">
-                    <Badge color="slate">{t.program}</Badge>
-                  </div>
+                  {t.program && (
+                    <div className="ml-auto">
+                      <Badge color="slate">{t.program}</Badge>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -1013,7 +1034,7 @@ const selectedPrice =
                   {[
                     { icon: Layers, label: `${intern.modules || 12} Learning Modules` },
                     { icon: Code2, label: `${intern.projects || 4} Real Projects` },
-                    { icon: Award, label: "3 Certificates" },
+                    { icon: Award, label: "Verified Certificate" },
                     { icon: QrCode, label: "QR Verification" },
                     { icon: Clock, label: "Self-paced Learning" },
                     { icon: HelpCircle, label: "24/7 Support" },
@@ -1129,7 +1150,7 @@ const selectedPrice =
                     { icon: Target, label: `Level: ${intern.level}` },
                     { icon: Layers, label: `${intern.modules || 12} modules` },
                     { icon: Code2, label: `${intern.projects || 4} projects` },
-                    { icon: Award, label: "3 certificates" },
+                    { icon: Award, label: "Verified certificate" },
                     { icon: Globe, label: "Self-paced, online" },
                   ].map(({ icon: Icon, label }) => (
                     <div key={label} className="flex items-center gap-2.5 text-sm text-muted-foreground">
@@ -1161,6 +1182,11 @@ function LoginPage() {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    api.stats.get().then(setStats).catch(() => setStats(null));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1191,7 +1217,12 @@ function LoginPage() {
           <h2 className="font-display font-extrabold text-4xl text-white mb-4">Welcome back</h2>
           <p className="text-white/60 text-lg max-w-sm">Continue your journey toward a verified internship certificate.</p>
           <div className="mt-10 grid grid-cols-2 gap-4 text-center">
-            {[{ v: "10K+", l: "Students" }, { v: "52+", l: "Programs" }, { v: "8K+", l: "Certs Issued" }, { v: "4.8★", l: "Avg Rating" }].map(({ v, l }) => (
+            {[
+              { v: stats ? `${stats.totalStudents || 0}+` : "10K+", l: "Students" },
+              { v: stats ? `${stats.totalPrograms || 0}+` : "52+", l: "Programs" },
+              { v: stats ? `${stats.certificatesIssued || 0}+` : "8K+", l: "Certs Issued" },
+              { v: stats ? `${stats.averageRating || 4.9}★` : "4.8★", l: "Avg Rating" }
+            ].map(({ v, l }) => (
               <div key={l} className="bg-white/10 rounded-xl p-4">
                 <p className="font-display font-bold text-2xl text-white">{v}</p>
                 <p className="text-white/50 text-xs mt-0.5">{l}</p>
@@ -1581,6 +1612,7 @@ function StudentDashboard() {
   const { user, go, theme, toggleTheme, logout } = useApp();
   const [tab, setTab] = useState<StudentTab>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
@@ -1690,10 +1722,43 @@ function StudentDashboard() {
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2 rounded-lg hover:bg-muted text-muted-foreground relative">
-              <Bell className="w-4.5 h-4.5" />
-              <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground relative"
+                aria-label="View notifications"
+              >
+                <Bell className="w-4.5 h-4.5" />
+                {enrollments.length > 0 && (
+                  <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
+                )}
+              </button>
+              {notifOpen && (
+                <div className="absolute right-0 top-12 w-80 bg-card border border-border shadow-xl rounded-2xl p-4 z-50">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
+                    <h4 className="font-semibold text-sm text-foreground">Notifications</h4>
+                    <button onClick={() => setNotifOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">Close</button>
+                  </div>
+                  <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                    {enrollments.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-3 text-center">No new notifications</p>
+                    ) : (
+                      enrollments.map((en: any) => (
+                        <div key={en._id} className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors text-xs">
+                          <p className="font-semibold text-foreground">{enrollmentTitle(en)}</p>
+                          <p className="text-muted-foreground mt-0.5">Task {en.current_task || 1} of {en.total_tasks || 4} in progress</p>
+                          {en.current_task_due_at && (
+                            <p className="text-amber-500 mt-1 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> Due: {formatDate(en.current_task_due_at)}
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg">
               <div className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">
                 {user.name[0]}
@@ -2143,6 +2208,14 @@ function SubmitTaskModal({ task, enrollmentId, onClose, onSubmitted }: {
 }
 
 function StudentCerts({ certificates, loading }: { certificates: any[]; loading: boolean }) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   return (
     <div>
       <h2 className="font-display font-bold text-2xl text-foreground mb-6">My Certificates</h2>
@@ -2174,6 +2247,13 @@ function StudentCerts({ certificates, loading }: { certificates: any[]; loading:
                 <a href={certificate.download_url || certificate.pdf_url} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Download">
                   <Download className="w-4 h-4" />
                 </a>
+                <button
+                  onClick={() => handleCopy(certificate.cert_id)}
+                  className="p-2.5 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                  title="Copy Certificate ID"
+                >
+                  {copiedId === certificate.cert_id ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </button>
                 <a href={certificate.verification_url || certificate.qr_code_url} target="_blank" rel="noopener noreferrer" className="p-2.5 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors" title="Verify Certificate">
                   <QrCode className="w-4 h-4" />
                 </a>
@@ -2226,6 +2306,48 @@ function StudentPayments({ payments }: { payments: any[] }) {
 }
 
 function StudentProfile({ user }: { user: User }) {
+  const { login } = useApp();
+  const [isEditing, setIsEditing] = useState(false);
+  const [fullName, setFullName] = useState(user.name || "");
+  const [collegeName, setCollegeName] = useState(user.college_name || "");
+  const [course, setCourse] = useState(user.course || "");
+  const [yearOfStudy, setYearOfStudy] = useState(user.year_of_study || 1);
+  const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setStatusMsg("");
+    setErrorMsg("");
+    try {
+      const updated = await api.auth.updateProfile({
+        full_name: fullName.trim(),
+        college_name: collegeName.trim(),
+        course: course.trim(),
+        year_of_study: Number(yearOfStudy),
+      });
+      login(updated);
+      setIsEditing(false);
+      setStatusMsg("Profile updated successfully!");
+      setTimeout(() => setStatusMsg(""), 4000);
+    } catch (err: any) {
+      setErrorMsg(err instanceof ApiError ? err.message : "Failed to update profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setFullName(user.name || "");
+    setCollegeName(user.college_name || "");
+    setCourse(user.course || "");
+    setYearOfStudy(user.year_of_study || 1);
+    setIsEditing(false);
+    setErrorMsg("");
+  };
+
   return (
     <div className="max-w-2xl">
       <h2 className="font-display font-bold text-2xl text-foreground mb-6">My Profile</h2>
@@ -2235,27 +2357,128 @@ function StudentProfile({ user }: { user: User }) {
           <div>
             <h3 className="font-bold text-xl text-foreground">{user.name}</h3>
             <p className="text-sm text-muted-foreground">{user.email}</p>
-            <Badge color="violet" >Student</Badge>
+            <Badge color="violet">Student</Badge>
           </div>
         </div>
+
+        {statusMsg && (
+          <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 flex-shrink-0" /> {statusMsg}
+          </div>
+        )}
+        {errorMsg && (
+          <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" /> {errorMsg}
+          </div>
+        )}
+
         <div className="h-px bg-border mb-5" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            { label: "Full Name", value: user.name },
-            { label: "Email Address", value: user.email },
-            { label: "Enrollment No.", value: user.enrollment_no || "Not provided" },
-            { label: "College", value: user.college_name || "Not provided" },
-            { label: "Course", value: user.course || "Not provided" },
-          ].map(({ label, value }) => (
-            <div key={label}>
-              <label className="text-xs text-muted-foreground font-medium block mb-1.5">{label}</label>
-              <input readOnly value={value} className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground" />
+
+        {isEditing ? (
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-muted-foreground font-medium block mb-1.5">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium block mb-1.5">Email Address</label>
+                <input
+                  readOnly
+                  disabled
+                  value={user.email}
+                  className="w-full px-3.5 py-2.5 bg-muted/50 border border-border rounded-xl text-sm text-muted-foreground cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium block mb-1.5">Enrollment No.</label>
+                <input
+                  readOnly
+                  disabled
+                  value={user.enrollment_no || "Not provided"}
+                  className="w-full px-3.5 py-2.5 bg-muted/50 border border-border rounded-xl text-sm text-muted-foreground cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium block mb-1.5">College</label>
+                <input
+                  type="text"
+                  value={collegeName}
+                  onChange={(e) => setCollegeName(e.target.value)}
+                  placeholder="e.g. IIT Bombay"
+                  className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium block mb-1.5">Course</label>
+                <input
+                  type="text"
+                  value={course}
+                  onChange={(e) => setCourse(e.target.value)}
+                  placeholder="e.g. Computer Science"
+                  className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground font-medium block mb-1.5">Year of Study</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="6"
+                  value={yearOfStudy}
+                  onChange={(e) => setYearOfStudy(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+              </div>
             </div>
-          ))}
-        </div>
-        <button className="mt-5 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5">
-          <Edit3 className="w-3.5 h-3.5" /> Update Profile
-        </button>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {saving ? <Spin /> : <><Check className="w-3.5 h-3.5" /> Save Changes</>}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2.5 bg-muted text-muted-foreground rounded-xl text-sm font-semibold hover:bg-muted/80 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { label: "Full Name", value: user.name },
+                { label: "Email Address", value: user.email },
+                { label: "Enrollment No.", value: user.enrollment_no || "Not provided" },
+                { label: "College", value: user.college_name || "Not provided" },
+                { label: "Course", value: user.course || "Not provided" },
+                { label: "Year of Study", value: user.year_of_study ? `Year ${user.year_of_study}` : "Not provided" },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <label className="text-xs text-muted-foreground font-medium block mb-1.5">{label}</label>
+                  <input readOnly value={value} className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground" />
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setIsEditing(true)}
+              className="mt-5 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5"
+            >
+              <Edit3 className="w-3.5 h-3.5" /> Edit Profile
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2271,6 +2494,7 @@ function AdminDashboard() {
   const [tab, setTab] = useState<AdminTab>("overview");
   const [stats, setStats] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [adminNotifOpen, setAdminNotifOpen] = useState(false);
 
   useEffect(() => {
     if (user?.role !== "admin") return;
@@ -2354,7 +2578,36 @@ function AdminDashboard() {
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-2 rounded-lg hover:bg-muted text-muted-foreground"><Bell className="w-4.5 h-4.5" /></button>
+            <div className="relative">
+              <button
+                onClick={() => setAdminNotifOpen(!adminNotifOpen)}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground relative"
+                aria-label="Admin notifications"
+              >
+                <Bell className="w-4.5 h-4.5" />
+                {(stats?.pendingSubmissions > 0) && (
+                  <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+                )}
+              </button>
+              {adminNotifOpen && (
+                <div className="absolute right-0 top-12 w-80 bg-card border border-border shadow-xl rounded-2xl p-4 z-50">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
+                    <h4 className="font-semibold text-sm text-foreground">Admin Alerts</h4>
+                    <button onClick={() => setAdminNotifOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">Close</button>
+                  </div>
+                  <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                    <div className="p-2.5 rounded-xl bg-muted/40 text-xs">
+                      <p className="font-semibold text-foreground">Task Submissions</p>
+                      <p className="text-muted-foreground mt-0.5">{stats?.pendingSubmissions ?? 0} pending submissions await review</p>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-muted/40 text-xs">
+                      <p className="font-semibold text-foreground">Registered Learners</p>
+                      <p className="text-muted-foreground mt-0.5">{stats?.totalStudents ?? stats?.totalUsers ?? 0} active students</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center text-sm font-bold">A</div>
           </div>
         </header>
@@ -2918,15 +3171,42 @@ function AdminPmts() {
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refundModal, setRefundModal] = useState<any>(null);
+  const [refundReason, setRefundReason] = useState("");
+  const [refundMfaToken, setRefundMfaToken] = useState("");
+  const [refunding, setRefunding] = useState(false);
+  const [refundError, setRefundError] = useState("");
 
-  useEffect(() => {
+  const loadPayments = () => {
     setLoading(true);
     setError("");
     api.admin.getPayments()
       .then((data) => setPayments(data.payments || []))
       .catch((err) => setError(err instanceof ApiError ? err.message : "Couldn't load payments."))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadPayments();
   }, []);
+
+  const handleRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refundModal) return;
+    setRefunding(true);
+    setRefundError("");
+    try {
+      await api.admin.refundPayment(refundModal._id, refundReason, refundMfaToken);
+      setRefundModal(null);
+      setRefundReason("");
+      setRefundMfaToken("");
+      loadPayments();
+    } catch (err: any) {
+      setRefundError(err instanceof ApiError ? err.message : "Refund failed");
+    } finally {
+      setRefunding(false);
+    }
+  };
 
   return (
     <div>
@@ -2942,7 +3222,7 @@ function AdminPmts() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              {["ID", "Student", "Program", "Amount", "Method", "Date", "Status"].map((h) => (
+              {["ID", "Student", "Program", "Amount", "Method", "Date", "Status", "Action"].map((h) => (
                 <th key={h} className="text-left px-5 py-4 text-xs font-semibold text-muted-foreground">{h}</th>
               ))}
             </tr>
@@ -2961,12 +3241,107 @@ function AdminPmts() {
                 <td className="px-5 py-4 text-sm text-muted-foreground">Razorpay</td>
                 <td className="px-5 py-4 text-sm text-muted-foreground">{formatDate(payment.paid_at || payment.created_at)}</td>
                 <td className="px-5 py-4"><Badge color={statusColor(payment.status)}>{payment.status || "created"}</Badge></td>
+                <td className="px-5 py-4">
+                  {payment.status === "paid" ? (
+                    <button
+                      onClick={() => {
+                        setRefundModal(payment);
+                        setRefundReason("");
+                        setRefundMfaToken("");
+                        setRefundError("");
+                      }}
+                      className="px-3 py-1.5 bg-red-500/10 text-red-600 dark:text-red-400 rounded-lg text-xs font-semibold hover:bg-red-500/20 transition-colors"
+                    >
+                      Refund
+                    </button>
+                  ) : payment.status === "refunded" ? (
+                    <span className="text-xs text-muted-foreground">Refunded</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </td>
               </tr>
             );})}
           </tbody>
         </table>
       </div>
       )}
+
+      {/* Admin Refund Modal with Step-Up MFA */}
+      <AnimatePresence>
+        {refundModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-red-500" /> Process Refund
+                </h3>
+                <button onClick={() => setRefundModal(null)} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="bg-muted/40 rounded-xl p-3 mb-4 text-xs space-y-1">
+                <p><strong className="text-foreground">Student:</strong> {refundModal.enrollment_id?.user_id?.full_name || "Unknown"}</p>
+                <p><strong className="text-foreground">Amount:</strong> ₹{Number(refundModal.amount || 0).toLocaleString()}</p>
+                <p><strong className="text-foreground">Order:</strong> <span className="font-mono">{refundModal.razorpay_order_id}</span></p>
+              </div>
+
+              {refundError && (
+                <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" /> {refundError}
+                </div>
+              )}
+
+              <form onSubmit={handleRefund} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Reason for Refund</label>
+                  <input
+                    type="text"
+                    required
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                    placeholder="e.g. 7-day money-back guarantee request"
+                    className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Admin MFA Code (Step-Up)</label>
+                  <input
+                    type="text"
+                    required
+                    value={refundMfaToken}
+                    onChange={(e) => setRefundMfaToken(e.target.value)}
+                    placeholder="6-digit TOTP code or backup code"
+                    className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">High-privilege operation protected by SEC-15 admin MFA.</p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setRefundModal(null)}
+                    className="flex-1 py-2.5 bg-muted text-muted-foreground rounded-xl text-sm font-semibold hover:bg-muted/80 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={refunding}
+                    className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {refunding ? <Spin /> : "Confirm Refund"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -2977,6 +3352,7 @@ function CertVerifyPage({ initialCode }: { initialCode?: string | null }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [searched, setSearched] = useState(false);
+  const [copied, setCopied] = useState(false);
   const verifiedCertificate = result?.certificate || result?.data || null;
 
   const performVerify = async (codeToVerify: string) => {
@@ -3000,6 +3376,29 @@ function CertVerifyPage({ initialCode }: { initialCode?: string | null }) {
       performVerify(initialCode.trim());
     }
   }, [initialCode]);
+
+  const handleCopyId = () => {
+    const code = verifiedCertificate?.certId || verifiedCertificate?.certificateId || internshipCode;
+    if (code) {
+      navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleDownload = () => {
+    const url = verifiedCertificate?.download_url || verifiedCertificate?.pdf_url;
+    if (url) {
+      window.open(url, "_blank");
+    } else {
+      const code = verifiedCertificate?.certId || internshipCode;
+      api.certificates.download(code).then((res) => {
+        if (res?.url) window.open(res.url, "_blank");
+      }).catch(() => {
+        window.open(`/api/verify/${encodeURIComponent(code)}`, "_blank");
+      });
+    }
+  };
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3082,11 +3481,11 @@ function CertVerifyPage({ initialCode }: { initialCode?: string | null }) {
                       ))}
                     </div>
                     <div className="flex gap-3">
-                      <button className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                      <button onClick={handleDownload} className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
                         <Download className="w-4 h-4" /> Download Certificate
                       </button>
-                      <button className="px-4 py-2.5 bg-muted text-muted-foreground rounded-xl text-sm font-semibold hover:bg-muted/80 transition-colors flex items-center gap-2">
-                        <Copy className="w-4 h-4" /> Copy ID
+                      <button onClick={handleCopyId} className="px-4 py-2.5 bg-muted text-muted-foreground rounded-xl text-sm font-semibold hover:bg-muted/80 transition-colors flex items-center gap-2">
+                        {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />} {copied ? "Copied!" : "Copy ID"}
                       </button>
                     </div>
                   </div>

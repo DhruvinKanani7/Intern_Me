@@ -184,6 +184,18 @@ export const api = {
       const body = await get<any>("/auth/me");
       return { user: normalizeUser(unwrap<any>(body)) };
     },
+
+    updateProfile: async (data: {
+      full_name?: string;
+      college_name?: string;
+      course?: string;
+      year_of_study?: number;
+    }) => {
+      const body = await put<any>("/auth/profile", data);
+      const user = normalizeUser(unwrap<any>(body));
+      userStore.set(user);
+      return user;
+    },
   },
 
   internships: {
@@ -273,7 +285,42 @@ export const api = {
       const body = await get<any>("/admin/certificates");
       return unwrap<any[]>(body);
     },
-    revokeCertificate: (id: string) => post(`/admin/certificates/${id}/revoke`),
+    revokeCertificate: (id: string, mfaToken?: string) =>
+      post(`/admin/certificates/${id}/revoke`, { mfa_token: mfaToken }),
+    getPayments: async () => {
+      const body = await get<any>("/admin/payments");
+      return unwrap<any>(body);
+    },
+    refundPayment: (id: string, reason?: string, mfaToken?: string) =>
+      post<any>(`/admin/payments/${id}/refund`, { reason, mfa_token: mfaToken }),
+    getTestimonials: async () => {
+      const body = await get<any>("/admin/testimonials");
+      return unwrap<any>(body);
+    },
+    approveTestimonial: (id: string) => post<any>(`/admin/testimonials/${id}/approve`),
+    deleteTestimonial: (id: string) => request<any>(`/admin/testimonials/${id}`, { method: "DELETE" }),
+  },
+
+  stats: {
+    get: async () => {
+      const body = await get<any>("/stats");
+      return unwrap<any>(body);
+    },
+  },
+
+  testimonials: {
+    getAll: async () => {
+      const body = await get<any>("/testimonials");
+      return unwrap<any[]>(body);
+    },
+    submit: (payload: {
+      name: string;
+      role: string;
+      company?: string;
+      rating?: number;
+      text: string;
+      program?: string;
+    }) => post<any>("/testimonials", payload),
   },
 
   contact: {
