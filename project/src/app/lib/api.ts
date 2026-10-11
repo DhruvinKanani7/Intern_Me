@@ -257,6 +257,13 @@ export const api = {
     },
   },
 
+  payments: {
+    getMyPayments: async () => {
+      const body = await get<any>("/payments/my");
+      return unwrap<any[]>(body);
+    },
+  },
+
   admin: {
     getStats: async () => {
       const body = await get<any>("/admin/dashboard");
@@ -269,13 +276,19 @@ export const api = {
         completionRate: data.completionRate ?? "0%",
       };
     },
-    getUsers: async () => {
-      const body = await get<any>("/admin/users");
-      return unwrap<any[]>(body);
+    getUsers: async (params?: { search?: string }) => {
+      const query = new URLSearchParams();
+      if (params?.search) query.set("search", params.search);
+      const body = await get<any>(`/admin/users${query.toString() ? `?${query.toString()}` : ""}`);
+      return unwrap<any>(body);
     },
     getSubmissions: async () => {
       const body = await get<any>("/admin/submissions/pending");
-      return unwrap<any[]>(body);
+      return unwrap<any>(body);
+    },
+    getPendingSubmissions: async () => {
+      const body = await get<any>("/admin/submissions/pending");
+      return unwrap<any>(body);
     },
     reviewSubmission: (id: string, action: "approve" | "reject", notes?: string) =>
       post(`/admin/submissions/${id}/review`, { action, notes }),
@@ -283,7 +296,7 @@ export const api = {
     updateInternship: (id: string, payload: unknown) => put(`/admin/internships/${id}`, payload),
     getCertificates: async () => {
       const body = await get<any>("/admin/certificates");
-      return unwrap<any[]>(body);
+      return unwrap<any>(body);
     },
     revokeCertificate: (id: string, mfaToken?: string) =>
       post(`/admin/certificates/${id}/revoke`, { mfa_token: mfaToken }),
@@ -308,6 +321,10 @@ export const api = {
     },
   },
 
+  metrics: {
+    get: () => get<any>("/metrics"),
+  },
+
   testimonials: {
     getAll: async () => {
       const body = await get<any>("/testimonials");
@@ -325,6 +342,8 @@ export const api = {
 
   contact: {
     submit: (payload: { name: string; email: string; subject: string; message: string }) =>
+      post("/contact", payload),
+    send: (payload: { name: string; email: string; subject: string; message: string }) =>
       post("/contact", payload),
   },
 };

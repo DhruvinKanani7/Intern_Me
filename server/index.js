@@ -9,6 +9,7 @@ import requestIdMiddleware from './middleware/requestId.js';
 import errorHandler from './middleware/errorHandler.js';
 import { originCheck, csrfProtection } from './middleware/csrf.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
+import { metricsMiddleware } from './services/metricsService.js';
 
 import authRoutes from './routes/auth.js';
 import internshipRoutes from './routes/internships.js';
@@ -20,6 +21,7 @@ import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payments.js';
 import contactRoutes from './routes/contact.js';
 import statsRoutes from './routes/stats.js';
+import metricsRoutes from './routes/metrics.js';
 import seedDefaultTestimonials from './utils/seedTestimonials.js';
 
 const app = express();
@@ -32,6 +34,7 @@ app.set('trust proxy', trustProxyValue);
 
 // Security and middleware
 app.use(requestIdMiddleware);
+app.use(metricsMiddleware);
 
 // Enhanced Security Headers (Task 2.7 / F36)
 app.use(
@@ -91,6 +94,7 @@ app.use('/api/verify', verifyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/metrics', metricsRoutes);
 app.use('/api', statsRoutes);
 
 // Health check endpoint
