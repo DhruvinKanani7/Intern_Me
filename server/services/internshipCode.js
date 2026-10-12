@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import InternshipCodeCounter from '../models/InternshipCodeCounter.js';
 import Enrollment from '../models/Enrollment.js';
 
@@ -18,7 +19,7 @@ const generateInternshipCode = async (categoryCode) => {
   let exists = true;
 
   while (exists && attempts < 3) {
-    const randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const randomPart = crypto.randomBytes(2).toString('hex').toUpperCase();
     code = `IC-${categoryCode}-${paddedNumber}-${year}-${randomPart}`;
     // eslint-disable-next-line no-await-in-loop
     exists = await Enrollment.exists({ internship_code: code });

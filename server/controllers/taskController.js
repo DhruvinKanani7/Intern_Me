@@ -1,7 +1,12 @@
 import Enrollment from '../models/Enrollment.js';
 import TaskSubmission from '../models/TaskSubmission.js';
 import Internship from '../models/Internship.js';
-import { isValidLinkedInUrl, successResponse, errorResponse } from '../utils/helpers.js';
+import {
+  isValidLinkedInUrl,
+  normalizeLinkedInUrl,
+  successResponse,
+  errorResponse
+} from '../utils/helpers.js';
 
 const durationKey = (months) => `${months}m`;
 
@@ -21,7 +26,7 @@ const deriveTaskStatus = (taskNumber, currentTask, submissions) => {
   return 'completed';
 };
 
-export const getAllTasks = async (req, res) => {
+export const getAllTasks = async (req, res, next) => {
   try {
     const enrollment = await getOwnedEnrollment(req.params.enrollmentId, req.user.id);
     if (!enrollment) return res.status(404).json(errorResponse('Enrollment not found'));
@@ -48,11 +53,11 @@ export const getAllTasks = async (req, res) => {
 
     return res.json(successResponse({ data: tasks }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const getCurrentTask = async (req, res) => {
+export const getCurrentTask = async (req, res, next) => {
   try {
     const enrollment = await getOwnedEnrollment(req.params.enrollmentId, req.user.id);
     if (!enrollment) return res.status(404).json(errorResponse('Enrollment not found'));
@@ -65,11 +70,11 @@ export const getCurrentTask = async (req, res) => {
 
     return res.json(successResponse({ data: { ...currentTask.toObject?.() ?? currentTask, task_number: enrollment.current_task } }));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const submitTask = async (req, res) => {
+export const submitTask = async (req, res, next) => {
   try {
     const { linkedin_url } = req.body;
     const enrollment = await getOwnedEnrollment(req.params.enrollmentId, req.user.id);
@@ -77,8 +82,21 @@ export const submitTask = async (req, res) => {
     if (enrollment.status !== 'active') {
       return res.status(400).json(errorResponse('This enrollment is not active'));
     }
-    if (!isValidLinkedInUrl(linkedin_url)) {
-      return res.status(400).json(errorResponse('Please provide a valid LinkedIn post URL'));
+
+    // Task 4.2: Enrollment expiry check (F14)
+    if (new Date() > new Date(enrollment.end_date)) {
+      return res.status(403).json(errorResponse('This enrollment has expired and no longer accepts submissions'));
+    }
+
+    // Task 4.3: Per-task deadline check (F32)
+    if (enrollment.current_task_due_at && new Date() > new Date(enrollment.current_task_due_at)) {
+      return res.status(400).json(errorResponse('The deadline for this task has passed. Please contact an administrator for an extension.'));
+    }
+    const normalizedUrl = normalizeLinkedInUrl(linkedin_url);
+    if (!normalizedUrl) {
+      return res
+        .status(400)
+        .json(errorResponse('Please provide a valid LinkedIn URL (e.g. https://www.linkedin.com/posts/... or https://www.linkedin.com/in/...)'));
     }
 
     const existing = await TaskSubmission.findOne({
@@ -91,7 +109,7 @@ export const submitTask = async (req, res) => {
     }
 
     if (existing && existing.status === 'rejected') {
-      existing.linkedin_url = linkedin_url;
+      existing.linkedin_url = normalizedUrl;
       existing.status = 'pending';
       existing.review_notes = undefined;
       existing.reviewed_by = undefined;
@@ -104,16 +122,16 @@ export const submitTask = async (req, res) => {
     await TaskSubmission.create({
       enrollment_id: enrollment._id,
       task_number: enrollment.current_task,
-      linkedin_url
+      linkedin_url: normalizedUrl
     });
 
     return res.json(successResponse({}, 'Task submitted successfully'));
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };
 
-export const getProgress = async (req, res) => {
+export const getProgress = async (req, res, next) => {
   try {
     const enrollment = await getOwnedEnrollment(req.params.enrollmentId, req.user.id);
     if (!enrollment) return res.status(404).json(errorResponse('Enrollment not found'));
@@ -129,6 +147,6 @@ export const getProgress = async (req, res) => {
       successResponse({ data: { completed, total, percentage, current_task: enrollment.current_task } })
     );
   } catch (err) {
-    return res.status(500).json(errorResponse(err.message));
+    next(err);
   }
 };

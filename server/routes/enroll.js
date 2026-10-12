@@ -1,19 +1,25 @@
 import express from 'express';
 import auth from '../middleware/auth.js';
+import validate, { validateObjectIdParam } from '../middleware/validate.js';
+import {
+  createOrderSchema,
+  verifyPaymentSchema
+} from '../validators/enrollValidators.js';
 import {
   createOrderHandler,
   verifyPaymentHandler,
   getMyEnrollments,
-  getEnrollmentById,
-  devCompleteOrderHandler
+  getEnrollmentById
 } from '../controllers/enrollController.js';
+import { paymentsLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
-router.post('/create-order', auth, createOrderHandler);
-router.post('/verify-payment', auth, verifyPaymentHandler);
+router.post('/create-order', paymentsLimiter, auth, validate(createOrderSchema), createOrderHandler);
+router.post('/verify-payment', paymentsLimiter, auth, validate(verifyPaymentSchema), verifyPaymentHandler);
 router.get('/my', auth, getMyEnrollments);
-router.get('/:id', auth, getEnrollmentById);
-router.post('/dev-complete-order', auth, devCompleteOrderHandler);
+router.get('/:id', auth, validateObjectIdParam('id'), getEnrollmentById);
+
+// Task 1.2: dev-complete-order route permanently removed
 
 export default router;

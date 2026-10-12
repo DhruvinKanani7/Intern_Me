@@ -1,0 +1,80 @@
+name: CI Baseline
+
+on:
+  push:
+    branches: [main, modernization, hardening]
+  pull_request:
+    branches: [main, modernization, hardening]
+
+jobs:
+  server-checks:
+    name: Server Tests & Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./server
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+
+      - name: Run Server Tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          MONGODB_URI: mongodb://127.0.0.1:27017/ci_test
+          JWT_SECRET: a-super-secret-key-that-is-very-long-for-testing-12345
+          FRONTEND_URL: http://localhost:5173
+          PAYMENTS_MODE: mock
+          RESEND_API_KEY: re_mock_test_key_for_offline_testing
+          RAZORPAY_KEY_SECRET: test_secret
+          RAZORPAY_WEBHOOK_SECRET: test_webhook_secret
+
+  client-checks:
+    name: Client Build & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./project
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: project/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+  secret-scan:
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
