@@ -39,6 +39,8 @@ jobs:
           FRONTEND_URL: http://localhost:5173
           PAYMENTS_MODE: mock
           RESEND_API_KEY: re_mock_test_key_for_offline_testing
+          RAZORPAY_KEY_SECRET: test_secret
+          RAZORPAY_WEBHOOK_SECRET: test_webhook_secret
 
   client-checks:
     name: Client Build & Lint

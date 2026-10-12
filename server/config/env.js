@@ -139,6 +139,8 @@ export function validateEnv(customEnv = process.env) {
         JWT_SECRET: process.env.JWT_SECRET || 'a-super-secret-key-that-is-very-long-for-testing-12345',
         FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
         PAYMENTS_MODE: 'mock',
+        RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'test_secret',
+        RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || 'test_webhook_secret',
         ...customEnv
       }
     : customEnv;

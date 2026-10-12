@@ -101,8 +101,9 @@ describe('Phase 8.4: Complete End-to-End User Journey (Testing Pyramid Integrati
     // 5. Simulate Razorpay payment verification
     const mockPaymentId = `pay_mock_${Date.now()}`;
     const signaturePayload = `${orderId}|${mockPaymentId}`;
+    const secret = env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_KEY_SECRET || 'test_secret';
     const validSignature = crypto
-      .createHmac('sha256', env.RAZORPAY_KEY_SECRET)
+      .createHmac('sha256', secret)
       .update(signaturePayload)
       .digest('hex');
 
