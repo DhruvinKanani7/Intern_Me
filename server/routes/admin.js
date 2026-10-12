@@ -13,8 +13,12 @@ import {
   getEnrollments,
   getPendingSubmissions,
   reviewSubmission,
+  getAdminInternships,
   createInternship,
   updateInternship,
+  deleteInternship,
+  restoreInternship,
+  hardDeleteInternship,
   getPayments,
   getCertificates,
   revokeCertificate,
@@ -45,8 +49,12 @@ router.get('/enrollments', getEnrollments);
 router.post('/enrollments/:id/extend', extendDeadline);
 router.get('/submissions/pending', getPendingSubmissions);
 router.post('/submissions/:id/review', validate(reviewTaskSchema), reviewSubmission);
+router.get('/internships', getAdminInternships);
 router.post('/internships', validate(createInternshipSchema), createInternship);
 router.put('/internships/:id', validate(updateInternshipSchema), updateInternship);
+router.delete('/internships/:id', deleteInternship);
+router.post('/internships/:id/restore', restoreInternship);
+router.delete('/internships/:id/permanent', hardDeleteInternship);
 router.get('/payments', getPayments);
 // Task 7.1 / SEC-15 / F29: MFA step-up required for payment refund
 router.post('/payments/:id/refund', requireAdminMfa, refundPayment);

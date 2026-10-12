@@ -114,20 +114,96 @@ const normalizeUser = (user: any) => ({
   yearOfStudy: user?.yearOfStudy || user?.year_of_study,
 });
 
-const normalizeInternship = (item: any) => ({
-  id: item?.id || item?.category_code,
-  title: item?.title || item?.category_name,
-  code: item?.category_code,
-  category: item?.category_name,
-  description: item?.description,
-  icon: item?.icon || "📘",
-  rating: 4.8,
-  reviewsCount: 120,
-  popular: Boolean(item?.price_1m),
-  price1m: item?.price_1m,
-  price3m: item?.price_3m,
-  price5m: item?.price_5m,
-});
+const DEFAULT_PROGRAM_IMAGES = [
+  "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&auto=format&fit=crop&q=80",
+  "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80",
+  "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&auto=format&fit=crop&q=80",
+  "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80",
+  "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=800&auto=format&fit=crop&q=80"
+];
+
+const DOMAIN_IMAGES: Record<string, string> = {
+  web: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80",
+  data: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop&q=80",
+  cloud: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&auto=format&fit=crop&q=80",
+  design: "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=800&auto=format&fit=crop&q=80",
+  security: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&auto=format&fit=crop&q=80",
+  ai: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&auto=format&fit=crop&q=80",
+  code: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&auto=format&fit=crop&q=80"
+};
+
+const getFallbackImage = (key: string) => {
+  const lower = String(key || "").toLowerCase();
+  if (lower.includes("web") || lower.includes("mern") || lower.includes("fswd") || lower.includes("html") || lower.includes("react")) {
+    return DOMAIN_IMAGES.web;
+  }
+  if (lower.includes("data") || lower.includes("ds") || lower.includes("analytics")) {
+    return DOMAIN_IMAGES.data;
+  }
+  if (lower.includes("cloud") || lower.includes("devops") || lower.includes("aws") || lower.includes("cc")) {
+    return DOMAIN_IMAGES.cloud;
+  }
+  if (lower.includes("design") || lower.includes("ui") || lower.includes("ux")) {
+    return DOMAIN_IMAGES.design;
+  }
+  if (lower.includes("cyber") || lower.includes("security") || lower.includes("cs")) {
+    return DOMAIN_IMAGES.security;
+  }
+  if (lower.includes("ai") || lower.includes("ml") || lower.includes("machine") || lower.includes("intelligence")) {
+    return DOMAIN_IMAGES.ai;
+  }
+  const sum = lower.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return DEFAULT_PROGRAM_IMAGES[Math.abs(sum) % DEFAULT_PROGRAM_IMAGES.length];
+};
+
+const normalizeInternship = (item: any) => {
+  const code = item?.category_code || item?.code || "";
+  const title = item?.title || item?.category_name || "Internship Program";
+  const category = item?.category_name || item?.category || "Technology";
+  const price1m = Number(item?.price_1m ?? item?.price1m ?? 0);
+  const price3m = Number(item?.price_3m ?? item?.price3m ?? 0);
+  const price5m = Number(item?.price_5m ?? item?.price5m ?? 0);
+  const price = price1m || price3m || price5m || Number(item?.price || 0);
+
+  return {
+    id: item?.id || item?.category_code || item?._id,
+    _id: item?._id || item?.id,
+    category_code: code,
+    category_name: item?.category_name || title,
+    title,
+    code,
+    category,
+    description: item?.description || "Hands-on internship program with real-world industry tasks.",
+    icon: item?.icon || "📘",
+    duration: item?.duration || "1 - 5 Months",
+    level: item?.level || "Beginner",
+    price,
+    originalPrice: item?.originalPrice || (price > 0 ? Math.round(price * 1.5) : undefined),
+    price_1m: price1m,
+    price_3m: price3m,
+    price_5m: price5m,
+    price1m,
+    price3m,
+    price5m,
+    total_tasks_1m: Number(item?.total_tasks_1m ?? item?.projects ?? 4),
+    total_tasks_3m: Number(item?.total_tasks_3m ?? item?.modules ?? 8),
+    total_tasks_5m: Number(item?.total_tasks_5m ?? 14),
+    is_active: item?.is_active !== undefined ? Boolean(item.is_active) : true,
+    deleted_at: item?.deleted_at || null,
+    enrolled: Number(item?.enrolled ?? 142),
+    rating: Number(item?.rating ?? 4.8),
+    reviews: Number(item?.reviews ?? item?.reviewsCount ?? 84),
+    reviewsCount: Number(item?.reviewsCount ?? item?.reviews ?? 84),
+    skills: Array.isArray(item?.skills) && item.skills.length > 0
+      ? item.skills
+      : [category, "Practical Tasks", "Verified Certificate"],
+    image: item?.image || getFallbackImage(code || title),
+    badge: item?.badge || (price1m > 0 ? "Featured" : undefined),
+    popular: Boolean(item?.popular ?? price1m > 0),
+    modules: item?.modules ?? item?.total_tasks_3m ?? 8,
+    projects: item?.projects ?? item?.total_tasks_1m ?? 4,
+  };
+};
 
 // ── API ───────────────────────────────────────────────────────────────────────
 export const api = {
@@ -291,9 +367,25 @@ export const api = {
       return unwrap<any>(body);
     },
     reviewSubmission: (id: string, action: "approve" | "reject", notes?: string) =>
-      post(`/admin/submissions/${id}/review`, { action, notes }),
+      post(`/admin/submissions/${id}/review`, {
+        action,
+        status: action === "approve" ? "approved" : "rejected",
+        notes,
+      }),
+    getInternships: async (params?: { status?: "all" | "active" | "deleted"; search?: string }) => {
+      const query = new URLSearchParams();
+      if (params?.status) query.set("status", params.status);
+      if (params?.search) query.set("search", params.search);
+      const body = await get<any>(`/admin/internships${query.toString() ? `?${query.toString()}` : ""}`);
+      const data = unwrap<any>(body);
+      const list = Array.isArray(data) ? data : data?.data || [];
+      return list.map(normalizeInternship);
+    },
     createInternship: (payload: unknown) => post("/admin/internships", payload),
     updateInternship: (id: string, payload: unknown) => put(`/admin/internships/${id}`, payload),
+    deleteInternship: (id: string) => request<any>(`/admin/internships/${id}`, { method: "DELETE" }),
+    restoreInternship: (id: string) => post<any>(`/admin/internships/${id}/restore`),
+    hardDeleteInternship: (id: string) => request<any>(`/admin/internships/${id}/permanent`, { method: "DELETE" }),
     getCertificates: async () => {
       const body = await get<any>("/admin/certificates");
       return unwrap<any>(body);

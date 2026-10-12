@@ -81,11 +81,13 @@ export function enrollmentCode(enrollment: any) {
 export function enrollmentProgress(enrollment: any) {
   const current = Math.max(1, Number(enrollment?.current_task || 1));
   const total = Math.max(1, Number(enrollment?.total_tasks || 1));
-  const completed = Math.min(total, Math.max(0, current - 1));
+  const isCompleted =
+    enrollment?.status === "completed" || current > total;
+  const completed = isCompleted ? total : Math.min(total, Math.max(0, current - 1));
   return {
     completed,
     total,
-    percentage: Math.round((completed / total) * 100),
+    percentage: isCompleted ? 100 : Math.round((completed / total) * 100),
   };
 }
 

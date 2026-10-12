@@ -36,6 +36,7 @@ const ALLOWED_INTERNSHIP_FIELDS = [
   'total_tasks_3m',
   'total_tasks_5m',
   'is_active',
+  'deleted_at',
   'syllabus'
 ];
 
@@ -326,13 +327,41 @@ export const createInternship = async (req, res, next) => {
   }
 };
 
+export const getAdminInternships = async (req, res, next) => {
+  try {
+    const filter = {};
+    if (req.query.status === 'active') {
+      filter.is_active = true;
+    } else if (req.query.status === 'deleted' || req.query.status === 'inactive') {
+      filter.is_active = false;
+    }
+
+    if (req.query.search) {
+      const search = escapeRegex(req.query.search, 64);
+      filter.$or = [
+        { category_code: { $regex: search, $options: 'i' } },
+        { category_name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const internships = await Internship.find(filter).sort({ created_at: -1, _id: -1 });
+    return res.json(successResponse({ data: internships }));
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const updateInternship = async (req, res, next) => {
   try {
     const safeData = filterAllowedFields(req.body);
-    const existing = await Internship.findById(req.params.id);
+    const query = mongoose.isValidObjectId(req.params.id)
+      ? { _id: req.params.id }
+      : { category_code: String(req.params.id).toUpperCase() };
+    const existing = await Internship.findOne(query);
     if (!existing) return res.status(404).json(errorResponse('Internship not found'));
 
-    const internship = await Internship.findByIdAndUpdate(req.params.id, safeData, {
+    const internship = await Internship.findByIdAndUpdate(existing._id, safeData, {
       new: true,
       runValidators: true
     });
@@ -342,12 +371,119 @@ export const updateInternship = async (req, res, next) => {
       action: 'internship_updated',
       targetType: 'Internship',
       targetId: internship._id,
-      beforeState: { category_code: existing.category_code, category_name: existing.category_name },
+      beforeState: { category_code: existing.category_code, category_name: existing.category_name, is_active: existing.is_active },
       afterState: safeData,
       req
     });
 
     return res.json(successResponse({ data: internship }));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const deleteInternship = async (req, res, next) => {
+  try {
+    const query = mongoose.isValidObjectId(req.params.id)
+      ? { _id: req.params.id }
+      : { category_code: String(req.params.id).toUpperCase() };
+    const existing = await Internship.findOne(query);
+    if (!existing) return res.status(404).json(errorResponse('Internship not found'));
+
+    if (!existing.is_active) {
+      return res.status(400).json(errorResponse('Internship is already soft deleted'));
+    }
+
+    // Soft delete: set is_active: false, deleted_at: new Date()
+    existing.is_active = false;
+    existing.deleted_at = new Date();
+    await existing.save();
+
+    await logAuditEvent({
+      actorId: req.user.id,
+      action: 'internship_soft_deleted',
+      targetType: 'Internship',
+      targetId: existing._id,
+      beforeState: { is_active: true, category_code: existing.category_code },
+      afterState: { is_active: false, deleted_at: existing.deleted_at },
+      req
+    });
+
+    return res.json(
+      successResponse({
+        data: existing,
+        message: 'Internship soft deleted successfully'
+      })
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const restoreInternship = async (req, res, next) => {
+  try {
+    const query = mongoose.isValidObjectId(req.params.id)
+      ? { _id: req.params.id }
+      : { category_code: String(req.params.id).toUpperCase() };
+    const existing = await Internship.findOne(query);
+    if (!existing) return res.status(404).json(errorResponse('Internship not found'));
+
+    existing.is_active = true;
+    existing.deleted_at = null;
+    await existing.save();
+
+    await logAuditEvent({
+      actorId: req.user.id,
+      action: 'internship_restored',
+      targetType: 'Internship',
+      targetId: existing._id,
+      beforeState: { is_active: false, category_code: existing.category_code },
+      afterState: { is_active: true, deleted_at: null },
+      req
+    });
+
+    return res.json(
+      successResponse({
+        data: existing,
+        message: 'Internship restored successfully'
+      })
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const hardDeleteInternship = async (req, res, next) => {
+  try {
+    const query = mongoose.isValidObjectId(req.params.id)
+      ? { _id: req.params.id }
+      : { category_code: String(req.params.id).toUpperCase() };
+    const existing = await Internship.findOne(query);
+    if (!existing) return res.status(404).json(errorResponse('Internship not found'));
+
+    await Internship.findByIdAndDelete(existing._id);
+
+    await logAuditEvent({
+      actorId: req.user.id,
+      action: 'internship_hard_deleted',
+      targetType: 'Internship',
+      targetId: existing._id,
+      beforeState: {
+        category_code: existing.category_code,
+        category_name: existing.category_name,
+        is_active: existing.is_active,
+        deleted_at: existing.deleted_at
+      },
+      afterState: null,
+      req
+    });
+
+    return res.json(
+      successResponse({
+        data: { _id: existing._id, category_code: existing.category_code },
+        message: 'Internship permanently deleted from database'
+      })
+    );
   } catch (err) {
     next(err);
   }

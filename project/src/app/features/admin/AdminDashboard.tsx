@@ -4,6 +4,7 @@ import {
   GraduationCap, Home, Users, Briefcase, CheckCircle, Award,
   CreditCard, Sun, Moon, LogOut, Menu, Bell, DollarSign,
   Search, AlertCircle, X, MoreHorizontal, FileText, ExternalLink,
+  Edit3, Trash2, RotateCcw, Plus, Check, ShieldAlert, AlertTriangle,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -519,9 +520,17 @@ function AdminPrograms() {
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [hardDeleting, setHardDeleting] = useState(false);
   const [editingProgram, setEditingProgram] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<any | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "deleted">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
   const [form, setForm] = useState({
     category_code: "",
     category_name: "",
@@ -533,14 +542,15 @@ function AdminPrograms() {
     total_tasks_1m: "4",
     total_tasks_3m: "8",
     total_tasks_5m: "14",
+    is_active: true,
   });
 
   const loadPrograms = () => {
     setLoading(true);
     setError("");
-    api.internships
-      .getAll()
-      .then(setPrograms)
+    api.admin
+      .getInternships()
+      .then((data) => setPrograms(Array.isArray(data) ? data : []))
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : "Couldn't load programs.")
       )
@@ -558,20 +568,23 @@ function AdminPrograms() {
       category_name: "",
       description: "",
       icon: "📘",
-      price_1m: "",
-      price_3m: "",
-      price_5m: "",
+      price_1m: "899",
+      price_3m: "1499",
+      price_5m: "2199",
       total_tasks_1m: "4",
       total_tasks_3m: "8",
       total_tasks_5m: "14",
+      is_active: true,
     });
+    setError("");
+    setSuccessMsg("");
     setShowForm(true);
   };
 
   const openEditForm = (program: any) => {
     setEditingProgram(program);
     setForm({
-      category_code: program.category_code || program.id || "",
+      category_code: program.category_code || program.code || program.id || "",
       category_name: program.category_name || program.title || "",
       description: program.description || "",
       icon: program.icon || "📘",
@@ -581,7 +594,10 @@ function AdminPrograms() {
       total_tasks_1m: String(program.total_tasks_1m ?? program.projects ?? 4),
       total_tasks_3m: String(program.total_tasks_3m ?? program.modules ?? 8),
       total_tasks_5m: String(program.total_tasks_5m ?? 14),
+      is_active: program.is_active !== undefined ? program.is_active : true,
     });
+    setError("");
+    setSuccessMsg("");
     setShowForm(true);
   };
 
@@ -594,8 +610,10 @@ function AdminPrograms() {
   const submitProgram = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    setSuccessMsg("");
+
     if (!form.category_code.trim() || !form.category_name.trim() || !form.description.trim()) {
-      setError("Program code, name, and description are required.");
+      setError("Course code, course name, and description are required.");
       return;
     }
 
@@ -610,7 +628,7 @@ function AdminPrograms() {
       total_tasks_1m: Number(form.total_tasks_1m),
       total_tasks_3m: Number(form.total_tasks_3m),
       total_tasks_5m: Number(form.total_tasks_5m),
-      is_active: true,
+      is_active: Boolean(form.is_active),
     };
 
     if (
@@ -618,176 +636,683 @@ function AdminPrograms() {
         (value) => Number.isNaN(value) || value < 0
       )
     ) {
-      setError("Program prices must be valid non-negative numbers.");
+      setError("Course prices must be valid non-negative numbers.");
       return;
     }
 
     setSaving(true);
     try {
-      if (editingProgram?._id) {
-        await api.admin.updateInternship(editingProgram._id, payload);
+      const targetId = editingProgram?._id || editingProgram?.id || editingProgram?.category_code;
+      if (editingProgram && targetId) {
+        await api.admin.updateInternship(targetId, payload);
+        setSuccessMsg(`Course "${payload.category_name}" updated successfully.`);
       } else {
         await api.admin.createInternship(payload);
+        setSuccessMsg(`Course "${payload.category_name}" created successfully.`);
       }
       setShowForm(false);
       loadPrograms();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Couldn't save program.");
+      setError(err instanceof ApiError ? err.message : "Couldn't save course.");
     } finally {
       setSaving(false);
     }
   };
 
+  const handleSoftDelete = async (program: any) => {
+    setDeleting(true);
+    setError("");
+    try {
+      const targetId = program._id || program.id || program.category_code;
+      await api.admin.deleteInternship(targetId);
+      setDeleteTarget(null);
+      setSuccessMsg(`Course "${program.title || program.category_name}" soft-deleted successfully.`);
+      loadPrograms();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't delete course.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleRestore = async (program: any) => {
+    setError("");
+    try {
+      const targetId = program._id || program.id || program.category_code;
+      await api.admin.restoreInternship(targetId);
+      setSuccessMsg(`Course "${program.title || program.category_name}" restored successfully.`);
+      loadPrograms();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't restore course.");
+    }
+  };
+
+  const handleHardDelete = async (program: any) => {
+    setHardDeleting(true);
+    setError("");
+    try {
+      const targetId = program._id || program.id || program.category_code;
+      await api.admin.hardDeleteInternship(targetId);
+      setHardDeleteTarget(null);
+      setSuccessMsg(`Course "${program.title || program.category_name}" permanently deleted from database.`);
+      loadPrograms();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't permanently delete course.");
+    } finally {
+      setHardDeleting(false);
+    }
+  };
+
+  const activePrograms = programs.filter((p) => p.is_active !== false);
+  const deletedPrograms = programs.filter((p) => p.is_active === false);
+
+  const filteredPrograms = programs.filter((p) => {
+    const matchesStatus =
+      statusFilter === "all"
+        ? true
+        : statusFilter === "active"
+        ? p.is_active !== false
+        : p.is_active === false;
+
+    const matchesSearch =
+      !searchQuery ||
+      (p.title || p.category_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.code || p.category_code || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.category || "").toLowerCase().includes(searchQuery.toLowerCase());
+
+    return matchesStatus && matchesSearch;
+  });
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="font-display font-bold text-2xl text-foreground">Programs</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="font-display font-bold text-2xl text-foreground">Course Programs</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Manage course offerings, pricing tiers, task counts, and soft deletion.
+          </p>
+        </div>
         <button
           onClick={openCreateForm}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity"
+          className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
         >
-          + Add Program
+          <Plus className="w-4 h-4" /> Add Course
         </button>
       </div>
+
+      {/* Status feedback alerts */}
+      {successMsg && (
+        <div className="mb-4 flex items-center justify-between p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-600 dark:text-emerald-400 text-sm">
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4 flex-shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+          <button onClick={() => setSuccessMsg("")} className="hover:opacity-75">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 flex items-center justify-between p-3.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button onClick={() => setError("")} className="hover:opacity-75">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Filter tabs and search */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-2 border-b md:border-b-0 border-border pb-2 md:pb-0 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setStatusFilter("all")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5",
+              statusFilter === "all"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <span>All Courses</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 dark:bg-white/15">
+              {programs.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("active")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5",
+              statusFilter === "active"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <span>Active</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 dark:bg-white/15">
+              {activePrograms.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("deleted")}
+            className={cn(
+              "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5",
+              statusFilter === "deleted"
+                ? "bg-red-500 text-white shadow-sm"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <span>Soft Deleted</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/15 dark:bg-white/15">
+              {deletedPrograms.length}
+            </span>
+          </button>
+        </div>
+
+        <div className="relative w-full md:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search code or title..."
+            className="w-full pl-9 pr-3 py-1.5 bg-card border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+      </div>
+
+      {/* Edit / Add Course Modal / Form */}
       {showForm && (
         <form
           onSubmit={submitProgram}
-          className="bg-card border border-border rounded-2xl p-5 mb-6"
+          className="bg-card border border-border rounded-2xl p-6 mb-6 shadow-xl"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">
-              {editingProgram ? "Edit Program" : "Add Program"}
-            </h3>
+          <div className="flex items-center justify-between mb-5 pb-3 border-b border-border">
+            <div>
+              <h3 className="font-bold text-foreground text-base">
+                {editingProgram ? "Edit Course" : "Add New Course"}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {editingProgram
+                  ? `Updating course ${editingProgram.category_code || editingProgram.code}`
+                  : "Create a new course offering for the platform."}
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => setShowForm(false)}
               aria-label="Close form"
-              className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input
-              value={form.category_code}
-              onChange={updateForm("category_code")}
-              placeholder="Code, e.g. AI"
-              className="px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
-            />
-            <input
-              value={form.category_name}
-              onChange={updateForm("category_name")}
-              placeholder="Program name"
-              className="px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
-            />
-            <input
-              value={form.icon}
-              onChange={updateForm("icon")}
-              placeholder="Icon"
-              className="px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
-            />
-            <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                Course Code (Unique identifier)
+              </label>
               <input
-                value={form.price_1m}
-                onChange={updateForm("price_1m")}
-                placeholder="1m price"
-                type="number"
-                min="0"
-                className="px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
-              />
-              <input
-                value={form.price_3m}
-                onChange={updateForm("price_3m")}
-                placeholder="3m price"
-                type="number"
-                min="0"
-                className="px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
-              />
-              <input
-                value={form.price_5m}
-                onChange={updateForm("price_5m")}
-                placeholder="5m price"
-                type="number"
-                min="0"
-                className="px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+                value={form.category_code}
+                onChange={updateForm("category_code")}
+                placeholder="e.g. FULLSTACK, AI, UIUX"
+                disabled={Boolean(editingProgram)}
+                className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground disabled:opacity-60 disabled:cursor-not-allowed font-mono uppercase"
               />
             </div>
-            <textarea
-              value={form.description}
-              onChange={updateForm("description")}
-              placeholder="Description"
-              rows={3}
-              className="md:col-span-2 px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground resize-none"
-            />
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                Course Name / Title
+              </label>
+              <input
+                value={form.category_name}
+                onChange={updateForm("category_name")}
+                placeholder="e.g. Full Stack Web Development"
+                className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                Icon (Emoji or symbol)
+              </label>
+              <input
+                value={form.icon}
+                onChange={updateForm("icon")}
+                placeholder="📘 or 💻 or 🎨"
+                className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                Course Status
+              </label>
+              <label className="flex items-center gap-2.5 px-3.5 py-2.5 bg-muted/30 border border-border rounded-xl cursor-pointer hover:bg-muted/50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={form.is_active}
+                  onChange={(e) => setForm((c) => ({ ...c, is_active: e.target.checked }))}
+                  className="rounded border-border text-primary focus:ring-primary w-4 h-4"
+                />
+                <span className="text-xs font-medium text-foreground">
+                  Active (visible in public catalog and open for enrollment)
+                </span>
+              </label>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                Pricing Tiers (₹ INR)
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <span className="text-[11px] text-muted-foreground block mb-1">1 Month Price</span>
+                  <input
+                    value={form.price_1m}
+                    onChange={updateForm("price_1m")}
+                    placeholder="899"
+                    type="number"
+                    min="0"
+                    className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground block mb-1">3 Month Price</span>
+                  <input
+                    value={form.price_3m}
+                    onChange={updateForm("price_3m")}
+                    placeholder="1499"
+                    type="number"
+                    min="0"
+                    className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground block mb-1">5 Month Price</span>
+                  <input
+                    value={form.price_5m}
+                    onChange={updateForm("price_5m")}
+                    placeholder="2199"
+                    type="number"
+                    min="0"
+                    className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                Total Tasks Required
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <span className="text-[11px] text-muted-foreground block mb-1">1 Month Tasks</span>
+                  <input
+                    value={form.total_tasks_1m}
+                    onChange={updateForm("total_tasks_1m")}
+                    placeholder="4"
+                    type="number"
+                    min="1"
+                    className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground block mb-1">3 Month Tasks</span>
+                  <input
+                    value={form.total_tasks_3m}
+                    onChange={updateForm("total_tasks_3m")}
+                    placeholder="8"
+                    type="number"
+                    min="1"
+                    className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground block mb-1">5 Month Tasks</span>
+                  <input
+                    value={form.total_tasks_5m}
+                    onChange={updateForm("total_tasks_5m")}
+                    placeholder="14"
+                    type="number"
+                    min="1"
+                    className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
+                Course Description
+              </label>
+              <textarea
+                value={form.description}
+                onChange={updateForm("description")}
+                placeholder="Detailed curriculum overview, skills gained, and project goals..."
+                rows={3}
+                className="w-full px-3.5 py-2.5 bg-input-background border border-border rounded-xl text-sm text-foreground resize-none"
+              />
+            </div>
           </div>
-          <div className="flex justify-end gap-3 mt-4">
+
+          <div className="flex justify-end gap-3 mt-5 pt-3 border-t border-border">
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="px-4 py-2 border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-muted"
+              className="px-4 py-2 border border-border rounded-xl text-sm font-semibold text-foreground hover:bg-muted transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-60"
+              className="px-5 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-all flex items-center gap-1.5"
             >
-              {saving ? "Saving..." : "Save Program"}
+              {saving ? (
+                <>
+                  <Spin /> Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  {editingProgram ? "Update Course" : "Save Course"}
+                </>
+              )}
             </button>
           </div>
         </form>
       )}
+
+      {/* Delete Confirmation Modal (Soft Delete) */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setDeleteTarget(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16 }}
+              className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 flex-shrink-0">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-base">Soft Delete Course?</h3>
+                  <p className="text-xs text-muted-foreground">Safe deletion with zero data loss</p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-muted/40 rounded-xl mb-4 text-xs space-y-2 text-foreground">
+                <p>
+                  Are you sure you want to soft delete{" "}
+                  <strong className="text-foreground font-semibold">
+                    {deleteTarget.title || deleteTarget.category_name}
+                  </strong>{" "}
+                  (<span className="font-mono">{deleteTarget.code || deleteTarget.category_code}</span>)?
+                </p>
+                <p className="text-muted-foreground">
+                  • The course will be <strong>hidden</strong> from the public catalog.
+                  <br />
+                  • <strong>Existing student enrollments, task submissions, and certificates remain 100% safe.</strong>
+                  <br />
+                  • You can restore this course at any time from this dashboard.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  className="px-4 py-2 border border-border rounded-xl text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSoftDelete(deleteTarget)}
+                  disabled={deleting}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm shadow-red-600/20"
+                >
+                  {deleting ? (
+                    <>
+                      <Spin /> Soft Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" /> Confirm Soft Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hard Delete Confirmation Modal */}
+      <AnimatePresence>
+        {hardDeleteTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setHardDeleteTarget(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16 }}
+              className="bg-card border border-red-500/40 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-red-600/15 flex items-center justify-center text-red-600 flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-base">Permanently Delete Course?</h3>
+                  <p className="text-xs text-red-500 font-semibold">Irreversible Hard Delete</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl mb-4 text-xs space-y-2 text-foreground">
+                <p>
+                  You are about to permanently purge{" "}
+                  <strong className="text-foreground font-semibold">
+                    {hardDeleteTarget.title || hardDeleteTarget.category_name}
+                  </strong>{" "}
+                  (<span className="font-mono">{hardDeleteTarget.code || hardDeleteTarget.category_code}</span>) from the database.
+                </p>
+                <p className="text-red-600 dark:text-red-400 font-medium">
+                  ⚠️ This action cannot be reversed. The course record, syllabus tasks, and metadata will be permanently eliminated.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setHardDeleteTarget(null)}
+                  className="px-4 py-2 border border-border rounded-xl text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleHardDelete(hardDeleteTarget)}
+                  disabled={hardDeleting}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-red-600/30"
+                >
+                  {hardDeleting ? (
+                    <>
+                      <Spin /> Hard Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" /> Permanently Delete
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Program Cards Listing */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Spin />
         </div>
-      ) : error ? (
-        <div className="text-center py-20 text-red-500">
-          <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-60" />
-          <p>{error}</p>
-        </div>
-      ) : programs.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
+      ) : filteredPrograms.length === 0 ? (
+        <div className="text-center py-20 text-muted-foreground bg-card border border-border rounded-2xl p-8">
           <Briefcase className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>No programs found.</p>
+          <p className="font-semibold text-foreground mb-1">No courses found</p>
+          <p className="text-xs text-muted-foreground">
+            {statusFilter !== "all" || searchQuery
+              ? "Try adjusting your search query or status filter."
+              : "Click '+ Add Course' to create your first course offering."}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {programs.map((i) => (
-            <div
-              key={i.id}
-              className="bg-card border border-border rounded-2xl p-5 flex items-start gap-4 hover:border-primary/20 transition-colors"
-            >
-              <div className="w-16 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl flex-shrink-0">
-                {i.icon || <Briefcase className="w-5 h-5 text-primary" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-foreground text-sm truncate">{i.title}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge color="violet">{i.category}</Badge>
-                  <span className="text-xs text-muted-foreground">₹{i.price.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                  <span>
-                    <FileText className="w-3 h-3 inline mr-0.5" />
-                    {i.modules || 0} tasks
-                  </span>
-                  <span>
-                    <CreditCard className="w-3 h-3 inline mr-0.5" />₹
-                    {Number(i.price_3m || 0).toLocaleString()} / 3 mo
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => openEditForm(i)}
-                aria-label="Edit program options"
-                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"
+          {filteredPrograms.map((i) => {
+            const isSoftDeleted = i.is_active === false;
+            return (
+              <div
+                key={i.id || i._id}
+                className={cn(
+                  "bg-card border rounded-2xl p-5 flex flex-col justify-between transition-all",
+                  isSoftDeleted
+                    ? "border-red-500/30 bg-red-500/[0.02]"
+                    : "border-border hover:border-primary/30"
+                )}
               >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl flex-shrink-0">
+                        {i.icon || "📘"}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <h3 className="font-semibold text-foreground text-sm truncate">
+                            {i.title || i.category_name}
+                          </h3>
+                          <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                            {i.code || i.category_code}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge color="violet">{i.category || i.category_name}</Badge>
+                          {isSoftDeleted ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500 border border-red-500/30">
+                              Soft Deleted
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground line-clamp-2 mb-4 leading-relaxed">
+                    {i.description}
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2.5 rounded-xl mb-4 text-xs">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">1 Month</span>
+                      <span className="font-bold text-foreground">₹{Number(i.price_1m || i.price || 0).toLocaleString()}</span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5">{i.total_tasks_1m || 4} tasks</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">3 Months</span>
+                      <span className="font-bold text-foreground">₹{Number(i.price_3m || 0).toLocaleString()}</span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5">{i.total_tasks_3m || 8} tasks</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">5 Months</span>
+                      <span className="font-bold text-foreground">₹{Number(i.price_5m || 0).toLocaleString()}</span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5">{i.total_tasks_5m || 14} tasks</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-border/80 gap-2">
+                  <div className="text-[11px] text-muted-foreground">
+                    {isSoftDeleted ? (
+                      <span className="text-red-500 font-medium">Hidden from catalog</span>
+                    ) : (
+                      <span>Visible to students</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(i)}
+                      className="px-3 py-1.5 bg-muted/70 hover:bg-muted text-foreground rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors border border-border/60"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit</span>
+                    </button>
+
+                    {isSoftDeleted ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleRestore(i)}
+                          className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Restore</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setHardDeleteTarget(i)}
+                          className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-600 hover:text-white border border-red-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                          title="Permanently remove course from database"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Hard Delete</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(i)}
+                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

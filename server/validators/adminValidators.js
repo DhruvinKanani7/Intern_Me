@@ -47,13 +47,18 @@ export const updateInternshipSchema = z
     total_tasks_3m: z.coerce.number().int().min(1).optional(),
     total_tasks_5m: z.coerce.number().int().min(1).optional(),
     is_active: z.boolean().optional(),
+    deleted_at: z.union([z.date(), z.string().datetime(), z.null()]).optional(),
     syllabus: syllabusSchema.optional()
   })
   .strict();
 
-export const reviewTaskSchema = z.object({
-  status: z.enum(['approved', 'rejected'], {
-    required_error: 'Status must be approved or rejected'
-  }),
-  notes: z.string().max(2000, 'Review notes cannot exceed 2000 characters').optional()
-});
+export const reviewTaskSchema = z
+  .object({
+    status: z.enum(['approved', 'rejected']).optional(),
+    action: z.enum(['approve', 'reject']).optional(),
+    notes: z.string().max(2000, 'Review notes cannot exceed 2000 characters').optional()
+  })
+  .refine((data) => Boolean(data.status || data.action), {
+    message: 'Status must be approved or rejected'
+  });
+

@@ -3,15 +3,18 @@ import { useParams } from "react-router";
 import {
   Star, Users, Clock, Target, Layers, Code2, Award, QrCode,
   HelpCircle, PlayCircle, Zap, Shield, Globe, AlertCircle,
+  CheckCircle, Briefcase, ArrowRight,
 } from "lucide-react";
+import { useNavigate } from "react-router";
 import { useApp } from "../../context/AppContext";
 import { Internship } from "../../types";
 import { TESTIMONIALS } from "../../constants/data";
 import { api, ApiError } from "../../lib/api";
-import { Badge, StarRow, Spin, cn, loadRazorpayScript } from "../../lib/helpers";
+import { Badge, StarRow, Spin, cn, loadRazorpayScript, formatDate } from "../../lib/helpers";
 
 export default function InternshipDetailPage() {
   const { selectedId: ctxId, go, user } = useApp();
+  const navigate = useNavigate();
   const routeParams = useParams<{ id: string }>();
   const internshipId = routeParams.id || ctxId;
 
@@ -22,6 +25,32 @@ export default function InternshipDetailPage() {
   const [loadingIntern, setLoadingIntern] = useState(true);
   const [internError, setInternError] = useState("");
   const [selectedDuration, setSelectedDuration] = useState<1 | 3 | 5>(1);
+  const [userEnrollments, setUserEnrollments] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user) {
+      api.enrollment
+        .getMyEnrollments()
+        .then((data) => setUserEnrollments(data || []))
+        .catch(() => setUserEnrollments([]));
+    } else {
+      setUserEnrollments([]);
+    }
+  }, [user]);
+
+  const registeredEnrollment = userEnrollments.find((en) => {
+    const enInternshipId = en.internship_id?._id || en.internship_id?.id || en.internship_id;
+    const enCategoryCode = (en.internship_id?.category_code || en.category_code || "").toUpperCase();
+    const internId = (intern?.id || "").toUpperCase();
+    const internCode = (intern?.code || "").toUpperCase();
+    return (
+      enInternshipId === intern?.id ||
+      (enCategoryCode && internCode && enCategoryCode === internCode) ||
+      (enCategoryCode && internId && enCategoryCode === internId)
+    );
+  });
+
+  const isRegistered = Boolean(registeredEnrollment);
 
   useEffect(() => {
     if (!internshipId) {
@@ -170,17 +199,17 @@ export default function InternshipDetailPage() {
     selectedDuration === 1
       ? intern.price_1m || intern.price
       : selectedDuration === 3
-      ? intern.price_3m || intern.price
-      : selectedDuration === 5
-      ? intern.price_5m || intern.price
-      : intern.price;
+        ? intern.price_3m || intern.price
+        : selectedDuration === 5
+          ? intern.price_5m || intern.price
+          : intern.price;
 
   return (
     <div className="pt-20">
       {/* Banner */}
       <div className="relative h-72 md:h-96 overflow-hidden bg-muted">
         <img
-          src={intern.image}
+          src={intern.image || "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800&auto=format&fit=crop&q=80"}
           alt={intern.title}
           className="w-full h-full object-cover"
         />
@@ -190,26 +219,32 @@ export default function InternshipDetailPage() {
             <div className="flex items-center gap-2 mb-3">
               <Badge color="violet">{intern.category}</Badge>
               {intern.badge && <Badge color="amber">{intern.badge}</Badge>}
+              {isRegistered && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-500/10">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  {registeredEnrollment.status === "completed" ? "Completed" : "Registered"}
+                </span>
+              )}
             </div>
             <h1 className="font-display font-extrabold text-3xl md:text-5xl text-white mb-3">
               {intern.title}
             </h1>
             <div className="flex flex-wrap items-center gap-4 text-white/70 text-sm">
               <span className="flex items-center gap-1.5">
-                <StarRow rating={intern.rating} />
-                <strong className="text-white">{intern.rating}</strong> ({intern.reviews} reviews)
+                <StarRow rating={intern.rating ?? 4.8} />
+                <strong className="text-white">{intern.rating ?? 4.8}</strong> ({(intern.reviews ?? 0).toLocaleString()} reviews)
               </span>
               <span className="flex items-center gap-1.5">
                 <Users className="w-4 h-4" />
-                {intern.enrolled.toLocaleString()} enrolled
+                {(intern.enrolled ?? 0).toLocaleString()} enrolled
               </span>
               <span className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
-                {intern.duration}
+                {intern.duration || "1 - 5 Months"}
               </span>
               <span className="flex items-center gap-1.5">
                 <Target className="w-4 h-4" />
-                {intern.level}
+                {intern.level || "Beginner"}
               </span>
             </div>
           </div>
@@ -373,57 +408,100 @@ export default function InternshipDetailPage() {
           <div>
             <div className="sticky top-24 bg-card border border-border rounded-2xl overflow-hidden shadow-xl shadow-primary/5">
               <div className="p-6">
-                <div className="mb-5">
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="font-display font-extrabold text-3xl text-foreground">
-                      ₹{selectedPrice.toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    for {selectedDuration} month{selectedDuration > 1 ? "s" : ""}
-                  </p>
-
-                  {durationOptions.length > 1 && (
-                    <div className="grid grid-cols-3 gap-2 mt-4 mb-2">
-                      {durationOptions.map((d) => (
-                        <button
-                          key={d.months}
-                          type="button"
-                          onClick={() => setSelectedDuration(d.months)}
-                          className={cn(
-                            "px-2 py-2.5 rounded-xl text-xs font-semibold border transition-all",
-                            selectedDuration === d.months
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border text-muted-foreground hover:border-primary/40"
-                          )}
-                        >
-                          {d.months} mo
-                        </button>
-                      ))}
+                {isRegistered ? (
+                  <div className="mb-5">
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {registeredEnrollment.status === "completed"
+                            ? "Course Completed"
+                            : "You're Registered"}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {registeredEnrollment.internship_code}
+                        </span>
+                      </div>
+                      <p className="font-bold text-foreground text-base mb-1">
+                        Active Student Access
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {registeredEnrollment.duration_months} Month Program • Enrolled on{" "}
+                        {formatDate(registeredEnrollment.start_date)}
+                      </p>
                     </div>
-                  )}
-                </div>
-                {enrollError && (
-                  <div className="flex items-center gap-2 p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-xs mb-3">
-                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {enrollError}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigate(
+                          `/student?tab=internships&enrollmentId=${registeredEnrollment._id}`
+                        );
+                      }}
+                      className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white rounded-xl font-bold text-base transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 mb-3"
+                    >
+                      <Briefcase className="w-4 h-4" />  My Internship
+                      <ArrowRight className="w-4 h-4 ml-0.5" />
+                    </button>
+                    <p className="text-center text-xs text-muted-foreground mb-4">
+                      Direct access to your tasks, submissions, and course completion.
+                    </p>
                   </div>
+                ) : (
+                  <>
+                    <div className="mb-5">
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="font-display font-extrabold text-3xl text-foreground">
+                          ₹{selectedPrice.toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        for {selectedDuration} month{selectedDuration > 1 ? "s" : ""}
+                      </p>
+
+                      {durationOptions.length > 1 && (
+                        <div className="grid grid-cols-3 gap-2 mt-4 mb-2">
+                          {durationOptions.map((d) => (
+                            <button
+                              key={d.months}
+                              type="button"
+                              onClick={() => setSelectedDuration(d.months)}
+                              className={cn(
+                                "px-2 py-2.5 rounded-xl text-xs font-semibold border transition-all",
+                                selectedDuration === d.months
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border text-muted-foreground hover:border-primary/40"
+                              )}
+                            >
+                              {d.months} mo
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {enrollError && (
+                      <div className="flex items-center gap-2 p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-xs mb-3">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {enrollError}
+                      </div>
+                    )}
+                    <button
+                      onClick={handleEnroll}
+                      disabled={enrolling}
+                      className="w-full py-3.5 bg-primary text-primary-foreground rounded-xl font-bold text-base hover:opacity-90 transition-opacity shadow-lg shadow-primary/30 flex items-center justify-center gap-2 mb-3"
+                    >
+                      {enrolling ? (
+                        <Spin />
+                      ) : (
+                        <>
+                          <Zap className="w-4 h-4" /> Enroll Now
+                        </>
+                      )}
+                    </button>
+                    <p className="text-center text-xs text-muted-foreground mb-5">
+                      7-day money-back guarantee
+                    </p>
+                  </>
                 )}
-                <button
-                  onClick={handleEnroll}
-                  disabled={enrolling}
-                  className="w-full py-3.5 bg-primary text-primary-foreground rounded-xl font-bold text-base hover:opacity-90 transition-opacity shadow-lg shadow-primary/30 flex items-center justify-center gap-2 mb-3"
-                >
-                  {enrolling ? (
-                    <Spin />
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4" /> Enroll Now
-                    </>
-                  )}
-                </button>
-                <p className="text-center text-xs text-muted-foreground mb-5">
-                  7-day money-back guarantee
-                </p>
                 <div className="flex flex-col gap-3">
                   {[
                     { icon: Clock, label: `Duration: ${intern.duration}` },
@@ -444,7 +522,10 @@ export default function InternshipDetailPage() {
               </div>
               <div className="border-t border-border p-4 bg-muted/30">
                 <p className="text-xs text-center text-muted-foreground flex items-center justify-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5" /> Secure payment via Razorpay
+                  <Shield className="w-3.5 h-3.5" />{" "}
+                  {isRegistered
+                    ? "Verified student enrollment on InternMe"
+                    : "Secure payment via Razorpay"}
                 </p>
               </div>
             </div>

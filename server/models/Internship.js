@@ -31,6 +31,7 @@ const internshipSchema = new Schema({
   total_tasks_3m: { type: Number, default: 8 },
   total_tasks_5m: { type: Number, default: 14 },
   is_active: { type: Boolean, default: true },
+  deleted_at: { type: Date, default: null },
   created_at: { type: Date, default: Date.now }
 });
 

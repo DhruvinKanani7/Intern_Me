@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   GraduationCap, Briefcase, FileText, Award, CreditCard,
   Settings, Home, Sun, Moon, LogOut, Menu, Bell, Clock,
   Calendar, Hash, ExternalLink, ArrowUpRight, X, Download,
   Check, Copy, QrCode, CheckCircle, AlertCircle, Edit3,
-  ChevronRight, ArrowRight,
+  ChevronRight, ArrowRight, ChevronDown,
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { User, Page, StudentTab } from "../../types";
@@ -42,14 +43,36 @@ function Plus({ className }: { className?: string }) {
 
 export default function StudentDashboard() {
   const { user, go, theme, toggleTheme, logout } = useApp();
+  const location = useLocation();
   const [tab, setTab] = useState<StudentTab>("overview");
+  const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Sync tab and enrollment ID from URL search parameters
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlTab = params.get("tab") as StudentTab | null;
+    const urlId = params.get("enrollmentId") || params.get("id");
+    if (urlTab) setTab(urlTab);
+    if (urlId) setSelectedCourseId(urlId);
+  }, [location.search]);
 
   useEffect(() => {
     if (!user) return;
@@ -188,58 +211,66 @@ export default function StudentDashboard() {
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative">
+            <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
-                className="p-2 rounded-lg hover:bg-muted text-muted-foreground relative"
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground relative transition-colors"
                 aria-label="View notifications"
               >
                 <Bell className="w-4.5 h-4.5" />
                 {enrollments.length > 0 && (
-                  <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full" />
+                  <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full animate-pulse" />
                 )}
               </button>
-              {notifOpen && (
-                <div
-                  role="dialog"
-                  aria-modal="true"
-                  className="absolute right-0 top-12 w-80 bg-card border border-border shadow-xl rounded-2xl p-4 z-50"
-                >
-                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
-                    <h4 className="font-semibold text-sm text-foreground">Notifications</h4>
-                    <button
-                      onClick={() => setNotifOpen(false)}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
-                    {enrollments.length === 0 ? (
-                      <p className="text-xs text-muted-foreground py-3 text-center">
-                        No new notifications
-                      </p>
-                    ) : (
-                      enrollments.map((en: any) => (
-                        <div
-                          key={en._id}
-                          className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors text-xs"
-                        >
-                          <p className="font-semibold text-foreground">{enrollmentTitle(en)}</p>
-                          <p className="text-muted-foreground mt-0.5">
-                            Task {en.current_task || 1} of {en.total_tasks || 4} in progress
-                          </p>
-                          {en.current_task_due_at && (
-                            <p className="text-amber-500 mt-1 flex items-center gap-1">
-                              <Clock className="w-3 h-3" /> Due: {formatDate(en.current_task_due_at)}
+              <AnimatePresence>
+                {notifOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                    transition={{ duration: 0.15 }}
+                    role="dialog"
+                    aria-modal="true"
+                    className="absolute right-0 top-12 w-80 bg-card/95 backdrop-blur-xl border border-border shadow-2xl rounded-2xl p-4 z-50 overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-border">
+                      <h4 className="font-semibold text-sm text-foreground">Notifications</h4>
+                      <button
+                        onClick={() => setNotifOpen(false)}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Close
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                      {enrollments.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-3 text-center">
+                          No new notifications
+                        </p>
+                      ) : (
+                        enrollments.map((en: any) => (
+                          <div
+                            key={en._id}
+                            className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 transition-colors text-xs"
+                          >
+                            <p className="font-semibold text-foreground">{enrollmentTitle(en)}</p>
+                            <p className="text-muted-foreground mt-0.5">
+                              {en.status === "completed"
+                                ? "All tasks completed 🎉"
+                                : `Task ${en.current_task || 1} of ${en.total_tasks || 4} in progress`}
                             </p>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
+                            {en.status !== "completed" && en.current_task_due_at && (
+                              <p className="text-amber-500 mt-1 flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Due: {formatDate(en.current_task_due_at)}
+                              </p>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg">
               <div className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">
@@ -282,9 +313,19 @@ export default function StudentDashboard() {
                   go={go}
                   enrollments={enrollments}
                   loading={dashboardLoading}
+                  onSelectCourse={(courseId) => {
+                    setSelectedCourseId(courseId);
+                    setTab("assignments");
+                  }}
                 />
               )}
-              {tab === "assignments" && <StudentAssignments enrollments={enrollments} />}
+              {tab === "assignments" && (
+                <StudentAssignments
+                  enrollments={enrollments}
+                  selectedEnrollmentId={selectedCourseId}
+                  setSelectedEnrollmentId={setSelectedCourseId}
+                />
+              )}
               {tab === "certs" && (
                 <StudentCerts
                   certificates={certificates}
@@ -512,10 +553,12 @@ function StudentOverview({
           <div className="flex-1 min-w-0">
             <p className="text-sm text-foreground">
               {currentEnrollment
-                ? `Next task: ${Math.min(
-                    Number(currentEnrollment.current_task || 1),
-                    Number(currentEnrollment.total_tasks || 1)
-                  )} of ${currentEnrollment.total_tasks}.`
+                ? currentEnrollment.status === "completed"
+                  ? "All tasks completed! Your certificate is generated and ready to view."
+                  : `Next task: ${Math.min(
+                      Number(currentEnrollment.current_task || 1),
+                      Number(currentEnrollment.total_tasks || 1)
+                    )} of ${currentEnrollment.total_tasks}.`
                 : "Enroll in a program to receive task updates here."}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -532,10 +575,12 @@ function StudentInternships({
   go,
   enrollments,
   loading,
+  onSelectCourse,
 }: {
   go: (p: Page, d?: { id?: string }) => void;
   enrollments: any[];
   loading: boolean;
+  onSelectCourse: (id: string) => void;
 }) {
   return (
     <div>
@@ -573,15 +618,28 @@ function StudentInternships({
                 className="bg-card border border-border rounded-2xl p-6"
               >
                 <div className="flex items-start gap-4 mb-6">
-                  <div className="w-20 h-14 rounded-xl bg-primary/10 flex items-center justify-center text-2xl flex-shrink-0">
+                  {/* Course Symbol - Clickable to Course Tasks */}
+                  <button
+                    type="button"
+                    onClick={() => onSelectCourse(enrollmentId(enrollment))}
+                    title="Click to view course tasks"
+                    className="w-20 h-14 rounded-xl bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-2xl flex-shrink-0 cursor-pointer transition-all border border-transparent hover:border-primary/30 active:scale-95 group"
+                  >
                     {enrollmentInternship(enrollment)?.icon || (
-                      <Briefcase className="w-6 h-6 text-primary" />
+                      <Briefcase className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
                     )}
-                  </div>
+                  </button>
+
                   <div className="flex-1">
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className="font-semibold text-foreground">
-                        {enrollmentTitle(enrollment)}
+                      {/* Course Name - Clickable to Course Tasks */}
+                      <h3
+                        onClick={() => onSelectCourse(enrollmentId(enrollment))}
+                        title="Click to view course tasks"
+                        className="font-semibold text-foreground hover:text-primary cursor-pointer transition-colors inline-flex items-center gap-1.5 group"
+                      >
+                        <span>{enrollmentTitle(enrollment)}</span>
+                        <ArrowRight className="w-4 h-4 text-primary opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
                       </h3>
                       <Badge color={statusColor(enrollment.status)}>
                         {enrollment.status || "active"}
@@ -614,44 +672,157 @@ function StudentInternships({
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    {
-                      label: "Tasks",
-                      value: `${progress.completed}/${progress.total}`,
-                      pct: progress.percentage,
-                      color: "bg-violet-500",
-                    },
-                    {
-                      label: "Current Task",
-                      value: `${enrollment.current_task || 1}`,
-                      pct: Math.min(
-                        100,
-                        (Number(enrollment.current_task || 1) /
-                          Math.max(1, Number(enrollment.total_tasks || 1))) *
-                          100
-                      ),
-                      color: "bg-amber-500",
-                    },
-                    {
-                      label: "Amount Paid",
-                      value: `₹${Number(enrollment.amount_paid || 0).toLocaleString()}`,
-                      pct: 100,
-                      color: "bg-blue-500",
-                    },
-                  ].map(({ label, value, pct, color }) => (
-                    <div key={label} className="bg-muted/50 rounded-xl p-4">
-                      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                      <p className="font-bold text-foreground text-lg">{value}</p>
-                      <div className="mt-2 h-1 bg-border rounded-full overflow-hidden">
-                        <div
-                          className={cn("h-full rounded-full", color)}
-                          style={{ width: `${pct}%` }}
-                        />
+                {(() => {
+                  const isCompleted =
+                    enrollment.status === "completed" || progress.percentage === 100;
+                  const endDate = enrollment.end_date ? new Date(enrollment.end_date) : null;
+                  const now = new Date();
+                  const msDiff = endDate ? endDate.getTime() - now.getTime() : 0;
+                  const daysRemaining = Math.max(0, Math.ceil(msDiff / (1000 * 60 * 60 * 24)));
+
+                  const startDate = enrollment.start_date ? new Date(enrollment.start_date) : now;
+                  const totalDuration = Math.max(
+                    1,
+                    (endDate ? endDate.getTime() : startDate.getTime() + 30 * 86400000) -
+                      startDate.getTime()
+                  );
+                  const timeElapsed = Math.max(
+                    0,
+                    Math.min(totalDuration, now.getTime() - startDate.getTime())
+                  );
+                  const timeProgressPct = isCompleted
+                    ? 100
+                    : Math.round((timeElapsed / totalDuration) * 100);
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Tasks Card - Clickable to Course Assignments */}
+                      <div
+                        onClick={() => onSelectCourse(enrollmentId(enrollment))}
+                        title="Click to view course tasks"
+                        className="bg-muted/50 rounded-xl p-4 flex flex-col justify-between cursor-pointer hover:border-primary/40 hover:bg-muted/80 hover:shadow-md transition-all border border-transparent group"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <p className="text-xs text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-1">
+                              Tasks <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </p>
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                              {progress.percentage}%
+                            </span>
+                          </div>
+                          <p className="font-bold text-foreground text-lg group-hover:text-primary transition-colors">
+                            {progress.completed}/{progress.total}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {isCompleted
+                              ? "All tasks completed 🎉 • View assignments"
+                              : `${progress.total - progress.completed} task${
+                                  progress.total - progress.completed === 1 ? "" : "s"
+                                } left • View tasks →`}
+                          </p>
+                        </div>
+                        <div className="mt-2 h-1 bg-border rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full",
+                              isCompleted ? "bg-emerald-500" : "bg-violet-500"
+                            )}
+                            style={{ width: `${progress.percentage}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Current Task */}
+                      <div className="bg-muted/50 rounded-xl p-4 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <p className="text-xs text-muted-foreground">Current Task</p>
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                              {isCompleted ? "Done" : `of ${enrollment.total_tasks || 4}`}
+                            </span>
+                          </div>
+                          <p className="font-bold text-foreground text-lg">
+                            {isCompleted ? "Completed" : `Task ${enrollment.current_task || 1}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {isCompleted
+                              ? "Eligible for certificate"
+                              : `Task ${enrollment.current_task || 1} in progress`}
+                          </p>
+                        </div>
+                        <div className="mt-2 h-1 bg-border rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full",
+                              isCompleted ? "bg-emerald-500" : "bg-amber-500"
+                            )}
+                            style={{
+                              width: `${
+                                isCompleted
+                                  ? 100
+                                  : Math.min(
+                                      100,
+                                      (Number(enrollment.current_task || 1) /
+                                        Math.max(1, Number(enrollment.total_tasks || 1))) *
+                                        100
+                                    )
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Course End & Remaining Time (Replaces Amount Paid) */}
+                      <div className="bg-muted/50 rounded-xl p-4 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <p className="text-xs text-muted-foreground">Course End</p>
+                            <span
+                              className={cn(
+                                "text-[11px] font-semibold px-1.5 py-0.5 rounded-md",
+                                isCompleted
+                                  ? "bg-emerald-500/10 text-emerald-500"
+                                  : daysRemaining <= 7
+                                  ? "bg-amber-500/10 text-amber-500"
+                                  : "bg-blue-500/10 text-blue-500"
+                              )}
+                            >
+                              {isCompleted
+                                ? "Completed"
+                                : daysRemaining === 0
+                                ? "Ends today"
+                                : `${daysRemaining}d left`}
+                            </span>
+                          </div>
+                          <p className="font-bold text-foreground text-lg">
+                            {formatDate(enrollment.end_date)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {isCompleted
+                              ? "Course completed 🎉"
+                              : daysRemaining === 0
+                              ? "Last day today"
+                              : `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining`}
+                          </p>
+                        </div>
+                        <div className="mt-2 h-1 bg-border rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full",
+                              isCompleted
+                                ? "bg-emerald-500"
+                                : daysRemaining <= 7
+                                ? "bg-amber-500"
+                                : "bg-blue-500"
+                            )}
+                            style={{ width: `${timeProgressPct}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -661,12 +832,36 @@ function StudentInternships({
   );
 }
 
-function StudentAssignments({ enrollments }: { enrollments: any[] }) {
-  const [selectedEnrollmentId, setSelectedEnrollmentId] = useState("");
+function StudentAssignments({
+  enrollments,
+  selectedEnrollmentId: propSelectedId,
+  setSelectedEnrollmentId: propSetSelectedId,
+}: {
+  enrollments: any[];
+  selectedEnrollmentId?: string;
+  setSelectedEnrollmentId?: (id: string) => void;
+}) {
+  const [internalSelectedId, setInternalSelectedId] = useState("");
+  const selectedEnrollmentId = propSelectedId || internalSelectedId;
+  const setSelectedEnrollmentId = propSetSelectedId || setInternalSelectedId;
+
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [submitTask, setSubmitTask] = useState<any>(null);
+  const [taskFilterTab, setTaskFilterTab] = useState<"remaining" | "completed" | "all">("remaining");
+  const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setCourseDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (!enrollments.length) {
@@ -699,6 +894,22 @@ function StudentAssignments({ enrollments }: { enrollments: any[] }) {
     fetchTasks();
   }, [selectedEnrollmentId]);
 
+  const activeEnrollment = enrollments.find(
+    (e) => enrollmentId(e) === selectedEnrollmentId
+  );
+
+  // Filter tasks strictly for this active course
+  const isCompletedTask = (t: any) => t.status === "completed" || t.status === "approved";
+  const completedTasks = tasks.filter(isCompletedTask);
+  const remainingTasks = tasks.filter((t) => !isCompletedTask(t));
+
+  const displayedTasks =
+    taskFilterTab === "completed"
+      ? completedTasks
+      : taskFilterTab === "remaining"
+      ? remainingTasks
+      : tasks;
+
   const statusConfig: Record<
     string,
     { color: "green" | "amber" | "red" | "slate" | "blue"; label: string }
@@ -713,23 +924,91 @@ function StudentAssignments({ enrollments }: { enrollments: any[] }) {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <h2 className="font-display font-bold text-2xl text-foreground">Assignments</h2>
+      {/* Header and custom course dropdown */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="font-display font-bold text-2xl text-foreground">Course Assignments</h2>
+          {activeEnrollment && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Tasks for <span className="font-semibold text-foreground">{enrollmentTitle(activeEnrollment)}</span> ({activeEnrollment.internship_code})
+            </p>
+          )}
+        </div>
+
+        {/* Enhanced Custom Dropdown Menu for Course Selection */}
         {enrollments.length > 1 && (
-          <select
-            value={selectedEnrollmentId}
-            onChange={(e) => setSelectedEnrollmentId(e.target.value)}
-            aria-label="Select enrollment for assignments"
-            className="px-4 py-2.5 bg-card border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-          >
-            {enrollments.map((enrollment) => (
-              <option key={enrollmentId(enrollment)} value={enrollmentId(enrollment)}>
-                {enrollmentTitle(enrollment)}
-              </option>
-            ))}
-          </select>
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setCourseDropdownOpen(!courseDropdownOpen)}
+              className="flex items-center gap-2.5 px-3.5 py-2 bg-card hover:bg-muted/80 border border-border rounded-xl text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all shadow-sm"
+            >
+              <div className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-xs flex-shrink-0">
+                {enrollmentInternship(activeEnrollment)?.icon || "📘"}
+              </div>
+              <span className="truncate max-w-[180px]">
+                {activeEnrollment ? enrollmentTitle(activeEnrollment) : "Select Course"}
+              </span>
+              <ChevronDown
+                className={cn(
+                  "w-3.5 h-3.5 text-muted-foreground transition-transform duration-200",
+                  courseDropdownOpen && "rotate-180"
+                )}
+              />
+            </button>
+
+            <AnimatePresence>
+              {courseDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-2xl shadow-2xl p-2 z-50 overflow-hidden"
+                >
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground px-3 py-1">
+                    Your Registered Courses
+                  </p>
+                  <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+                    {enrollments.map((en) => {
+                      const isSelected = enrollmentId(en) === selectedEnrollmentId;
+                      const enProgress = enrollmentProgress(en);
+                      return (
+                        <button
+                          key={enrollmentId(en)}
+                          type="button"
+                          onClick={() => {
+                            setSelectedEnrollmentId(enrollmentId(en));
+                            setCourseDropdownOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-center gap-2.5 w-full p-2.5 rounded-xl text-left text-xs transition-all",
+                            isSelected
+                              ? "bg-primary/10 text-primary font-semibold"
+                              : "hover:bg-muted text-foreground"
+                          )}
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center text-sm flex-shrink-0">
+                            {enrollmentInternship(en)?.icon || "📘"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate font-semibold">{enrollmentTitle(en)}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {enProgress.completed}/{enProgress.total} Tasks ({enProgress.percentage}%)
+                            </p>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </div>
+
       {enrollments.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
@@ -750,62 +1029,151 @@ function StudentAssignments({ enrollments }: { enrollments: any[] }) {
           <p>No tasks found for this enrollment.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {tasks.map((task) => (
-            <div
-              key={task.task_number}
-              className="bg-card border border-border rounded-2xl p-5 hover:border-primary/20 transition-colors"
+        <>
+          {/* Sub-tabs: Remaining Tasks vs Completed Tasks */}
+          <div className="flex items-center gap-2 mb-6 border-b border-border pb-3">
+            <button
+              type="button"
+              onClick={() => setTaskFilterTab("remaining")}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 border",
+                taskFilterTab === "remaining"
+                  ? "bg-amber-500/10 text-amber-500 border-amber-500/30 shadow-sm"
+                  : "bg-muted/40 text-muted-foreground border-transparent hover:text-foreground hover:bg-muted"
+              )}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-foreground mb-1">
-                    {task.title || `Task ${task.task_number}`}
-                  </h3>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>Task {task.task_number}</span>
-                    {task.deadline_days && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" /> Deadline: {task.deadline_days} days
-                      </span>
-                    )}
-                  </div>
-                  {task.description && (
-                    <p className="text-sm text-muted-foreground mt-3">{task.description}</p>
-                  )}
-                  {task.submission?.linkedin_url && (
-                    <a
-                      href={task.submission.linkedin_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-primary hover:underline mt-2 inline-flex items-center gap-1"
-                    >
-                      View submission <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <Badge color={(statusConfig[task.status] || { color: "blue" }).color}>
-                    {(statusConfig[task.status] || { label: task.status || "Open" }).label}
-                  </Badge>
-                </div>
-              </div>
-              {task.status === "rejected" && task.submission?.review_notes && (
-                <p className="text-xs text-red-500 mt-2">
-                  Reviewer note: {task.submission.review_notes}
+              <span>Remaining Tasks</span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-500">
+                {remainingTasks.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTaskFilterTab("completed")}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 border",
+                taskFilterTab === "completed"
+                  ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30 shadow-sm"
+                  : "bg-muted/40 text-muted-foreground border-transparent hover:text-foreground hover:bg-muted"
+              )}
+            >
+              <span>Completed Tasks</span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-500">
+                {completedTasks.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTaskFilterTab("all")}
+              className={cn(
+                "px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 border",
+                taskFilterTab === "all"
+                  ? "bg-primary/10 text-primary border-primary/30 shadow-sm"
+                  : "bg-muted/40 text-muted-foreground border-transparent hover:text-foreground hover:bg-muted"
+              )}
+            >
+              <span>All Tasks ({tasks.length})</span>
+            </button>
+          </div>
+
+          {/* Filtered Tasks List */}
+          {displayedTasks.length === 0 ? (
+            taskFilterTab === "remaining" ? (
+              <div className="text-center py-16 bg-card border border-emerald-500/20 rounded-2xl p-8">
+                <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                <h4 className="font-semibold text-lg text-foreground mb-1">
+                  All tasks completed for this course! 🎉
+                </h4>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
+                  Great job! Every assignment for this internship has been completed and approved.
                 </p>
-              )}
-              {(task.status === "current" || task.status === "rejected") && (
                 <button
-                  onClick={() => setSubmitTask(task)}
-                  className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                  type="button"
+                  onClick={() => setTaskFilterTab("completed")}
+                  className="px-4 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 rounded-xl text-xs font-semibold hover:bg-emerald-500/20 transition-all inline-flex items-center gap-1.5"
                 >
-                  <ArrowUpRight className="w-3.5 h-3.5" />{" "}
-                  {task.status === "rejected" ? "Resubmit Assignment" : "Submit Assignment"}
+                  View Completed Tasks ({completedTasks.length}) →
                 </button>
-              )}
+              </div>
+            ) : (
+              <div className="text-center py-16 bg-card border border-border rounded-2xl p-8">
+                <Clock className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+                <h4 className="font-semibold text-base text-foreground mb-1">
+                  No completed tasks yet
+                </h4>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
+                  Submit your active assignments. Once reviewed and approved by admin mentors, they will show here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setTaskFilterTab("remaining")}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-semibold hover:opacity-90 transition-all"
+                >
+                  View Remaining Tasks ({remainingTasks.length})
+                </button>
+              </div>
+            )
+          ) : (
+            <div className="flex flex-col gap-4">
+              {displayedTasks.map((task) => (
+                <div
+                  key={task.task_number}
+                  className="bg-card border border-border rounded-2xl p-5 hover:border-primary/20 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-foreground mb-1">
+                        {task.title || `Task ${task.task_number}`}
+                      </h3>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>Task {task.task_number}</span>
+                        {task.deadline_days && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" /> Deadline: {task.deadline_days} days
+                          </span>
+                        )}
+                      </div>
+                      {task.description && (
+                        <p className="text-sm text-muted-foreground mt-3">{task.description}</p>
+                      )}
+                      {task.submission?.linkedin_url && (
+                        <a
+                          href={task.submission.linkedin_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline mt-2 inline-flex items-center gap-1"
+                        >
+                          View submission <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge color={(statusConfig[task.status] || { color: "blue" }).color}>
+                        {(statusConfig[task.status] || { label: task.status || "Open" }).label}
+                      </Badge>
+                    </div>
+                  </div>
+                  {task.status === "rejected" && task.submission?.review_notes && (
+                    <p className="text-xs text-red-500 mt-2">
+                      Reviewer note: {task.submission.review_notes}
+                    </p>
+                  )}
+                  {(task.status === "current" || task.status === "rejected") && (
+                    <button
+                      onClick={() => setSubmitTask(task)}
+                      className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5"
+                    >
+                      <ArrowUpRight className="w-3.5 h-3.5" />{" "}
+                      {task.status === "rejected" ? "Resubmit Assignment" : "Submit Assignment"}
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
       <SubmitTaskModal
         task={submitTask}
