@@ -3,7 +3,11 @@ import env from '../config/env.js';
 import logger from '../config/logger.js';
 import { escapeHtml, safeHref } from '../utils/helpers.js';
 
-const resend = new Resend(env.RESEND_API_KEY || process.env.RESEND_API_KEY);
+const getResendClient = () => {
+  const apiKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  return new Resend(apiKey);
+};
 
 const baseWrapper = (title, bodyHtml) => `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fafafa;">
@@ -21,8 +25,8 @@ const baseWrapper = (title, bodyHtml) => `
 `;
 
 const send = async (to, subject, html, text) => {
-  const apiKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY;
-  if (!apiKey) {
+  const client = getResendClient();
+  if (!client) {
     logger.debug({ to, subject }, 'Skipping email send: RESEND_API_KEY is not configured');
     return null;
   }
@@ -30,7 +34,7 @@ const send = async (to, subject, html, text) => {
   const from = env.EMAIL_FROM || process.env.EMAIL_FROM || 'no-reply@interncert.com';
   const cappedSubject = String(subject || '').slice(0, 120);
 
-  return resend.emails.send({
+  return client.emails.send({
     from,
     to,
     subject: cappedSubject,

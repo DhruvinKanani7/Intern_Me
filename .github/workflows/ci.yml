@@ -38,6 +38,7 @@ jobs:
           JWT_SECRET: a-super-secret-key-that-is-very-long-for-testing-12345
           FRONTEND_URL: http://localhost:5173
           PAYMENTS_MODE: mock
+          RESEND_API_KEY: re_mock_test_key_for_offline_testing
 
   client-checks:
     name: Client Build & Lint

@@ -7,6 +7,7 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'a-super-secret-key-that-is-very-long-for-testing-12345';
 process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 process.env.PAYMENTS_MODE = 'mock';
+process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || 're_mock_test_key_for_offline_testing';
 process.env.MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/test_memory';
 
 let replSet;
