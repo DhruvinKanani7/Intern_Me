@@ -64,12 +64,12 @@ describe('Phase 9: Release Gate (SEC-01 to SEC-15 & Final Operational Criteria)'
         RAZORPAY_KEY_ID: '', // Missing secret
         RAZORPAY_KEY_SECRET: '',
         RAZORPAY_WEBHOOK_SECRET: '',
-        RESEND_API_KEY: 're_valid_key_123456789',
+        RESEND_API_KEY: 'dummy_resend_api_key_for_testing',
         EMAIL_FROM: 'noreply@interncert.example.com',
         CONTACT_TO_EMAIL: 'support@interncert.example.com',
-        CLOUDINARY_CLOUD_NAME: 'live-cloud',
-        CLOUDINARY_API_KEY: '1234567890',
-        CLOUDINARY_API_SECRET: 'live_secret_12345',
+        CLOUDINARY_CLOUD_NAME: 'test-cloud',
+        CLOUDINARY_API_KEY: 'mock_cloudinary_key',
+        CLOUDINARY_API_SECRET: 'dummy_cloudinary_secret',
       });
     }).toThrow('process.exit called with 1');
 

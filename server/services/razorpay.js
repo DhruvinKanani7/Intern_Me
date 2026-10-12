@@ -2,7 +2,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import env from '../config/env.js';
 
-const isMock = env.PAYMENTS_MODE === 'mock';
+const isMock = env.PAYMENTS_MODE === 'mock' || env.NODE_ENV === 'test';
 
 // In-memory mock store for test/mock runs
 const mockOrderStore = new Map();
