@@ -2,14 +2,16 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 import { beforeAll, afterAll, beforeEach } from 'vitest';
 
+// Set test environment variables immediately at setupFile load time
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'a-super-secret-key-that-is-very-long-for-testing-12345';
+process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+process.env.PAYMENTS_MODE = 'mock';
+process.env.MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/test_memory';
+
 let replSet;
 
 beforeAll(async () => {
-  // Set test environment variables
-  process.env.NODE_ENV = 'test';
-  process.env.JWT_SECRET = 'a-super-secret-key-that-is-very-long-for-testing-12345';
-  process.env.FRONTEND_URL = 'http://localhost:5173';
-  process.env.PAYMENTS_MODE = 'mock';
 
   // Spin up in-memory replica set (supports transactions)
   replSet = await MongoMemoryReplSet.create({

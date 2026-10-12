@@ -132,7 +132,18 @@ const envSchema = z
   });
 
 export function validateEnv(customEnv = process.env) {
-  const result = envSchema.safeParse(customEnv);
+  const isTest = (customEnv === process.env && process.env.NODE_ENV === 'test');
+  const effectiveEnv = isTest
+    ? {
+        MONGODB_URI: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/test_memory',
+        JWT_SECRET: process.env.JWT_SECRET || 'a-super-secret-key-that-is-very-long-for-testing-12345',
+        FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
+        PAYMENTS_MODE: 'mock',
+        ...customEnv
+      }
+    : customEnv;
+
+  const result = envSchema.safeParse(effectiveEnv);
   if (!result.success) {
     const formatted = result.error.issues
       .map((issue) => ` - [${issue.path.join('.')}]: ${issue.message}`)
